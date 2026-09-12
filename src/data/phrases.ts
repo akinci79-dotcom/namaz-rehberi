@@ -30,3 +30,13 @@ export const DUAA_RABBENA =
   'رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ';
 
 export const SALAM = 'اَلسَّلَامُ عَلَيْكُمْ وَرَحْمَةُ اللّٰهِ';
+
+/**
+ * Yaygın Hanefi kunut metni (Allahümme innâ nestaînüke…).
+ * Lafızlar kitaba / hocaya göre uzayıp kısalabilir; tek “resmî” metin değildir.
+ */
+export const KUNUT =
+  'اَللّٰهُمَّ إِنَّا نَسْتَعِينُكَ وَنَسْتَغْفِرُكَ وَنُؤْمِنُ بِكَ وَنَتَوَكَّلُ عَلَيْكَ وَنُثْنِي عَلَيْكَ الْخَيْرَ وَنَشْكُرُكَ وَلَا نَكْفُرُكَ وَنَخْلَعُ وَنَتْرُكُ مَنْ يَفْجُرُكَ. اَللّٰهُمَّ إِيَّاكَ نَعْبُدُ وَلَكَ نُصَلِّي وَنَسْجُدُ وَإِلَيْكَ نَسْعَى وَنَحْفِدُ نَرْجُو رَحْمَتَكَ وَنَخْشَى عَذَابَكَ إِنَّ عَذَابَكَ بِالْكُفَّارِ مُلْحِقٌ';
+
+export const KUNUT_TRANSLIT =
+  'Allahümme innâ nestaînüke ve nestağfiruke ve nü’minü bike ve netevekkelü aleyke ve nüsni aleykel-hayr. Ve neşküruke ve lâ nekfüruke ve nahleu ve netrukü men yefcürük. Allahümme iyyâke na’büdü ve leke nüsalli ve nescüdü ve ileyke nes’â ve nahfidü. Nercû rahmeteke ve nahşâ azâbeke, inne azâbeke bil-küffâri mülhık.';

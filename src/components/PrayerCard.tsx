@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { rankLabel } from '../data';
 import type { PrayerDefinition } from '../types/prayer';
 import type { Theme } from '../theme/colors';
 
@@ -13,7 +14,7 @@ export function PrayerCard({ prayer, theme, onPress }: Props) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${prayer.name} namazı, ${prayer.rakahCount} rekât farz`}
+      accessibilityLabel={`${prayer.name} namazı, ${prayer.rakahCount} rekât ${rankLabel(prayer).toLocaleLowerCase('tr-TR')}`}
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
@@ -26,7 +27,10 @@ export function PrayerCard({ prayer, theme, onPress }: Props) {
     >
       <View style={styles.row}>
         <View style={styles.copy}>
-          <Text style={[styles.name, { color: theme.text }]}>{prayer.name}</Text>
+          <Text style={[styles.name, { color: theme.text }]}>
+            {prayer.name}
+            <Text style={[styles.rank, { color: theme.accent }]}>  {rankLabel(prayer)}</Text>
+          </Text>
           <Text style={[styles.meta, { color: theme.textMuted }]}>{prayer.summary}</Text>
         </View>
         <View style={[styles.count, { backgroundColor: theme.accentSoft }]}>
@@ -60,6 +64,11 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     letterSpacing: -0.4,
+  },
+  rank: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   meta: {
     fontSize: 15,

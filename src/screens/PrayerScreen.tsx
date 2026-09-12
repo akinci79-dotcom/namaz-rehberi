@@ -11,7 +11,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StepProgress } from '../components/StepProgress';
-import { getNextTitle, getPrayer, getPrayerSteps, MADHAB_LABEL } from '../data';
+import { getNextTitle, getPrayer, getPrayerSteps, MADHAB_LABEL, rankLabel } from '../data';
 import type { Theme } from '../theme/colors';
 import type { PrayerId, SittingKind } from '../types/prayer';
 
@@ -92,7 +92,7 @@ export function PrayerScreen({
               {prayer.name} · {MADHAB_LABEL}
             </Text>
             <Text style={[styles.prayerMeta, { color: theme.textMuted }]}>
-              {prayer.rakahCount} rekât farz
+              {prayer.rakahCount} rekât {rankLabel(prayer).toLocaleLowerCase('tr-TR')}
             </Text>
           </View>
           <Pressable

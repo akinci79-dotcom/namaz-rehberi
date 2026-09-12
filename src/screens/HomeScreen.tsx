@@ -24,8 +24,8 @@ export function HomeScreen({ theme, onSelect }: Props) {
           <MadhabBadge theme={theme} />
           <Text style={[styles.title, { color: theme.text }]}>Namaz Rehberi</Text>
           <Text style={[styles.lead, { color: theme.textMuted }]}>
-            Telefonunu veya tableti önüne koy. Farz namazı seç; büyük yazılar hangi rekâtta
-            olduğunu ve sıradaki hareketi gösterir.
+            Telefonunu veya tableti önüne koy. Farz namazı veya vitiri seç; büyük yazılar
+            hangi rekâtta olduğunu ve sıradaki hareketi gösterir.
           </Text>
         </View>
 
@@ -43,7 +43,7 @@ export function HomeScreen({ theme, onSelect }: Props) {
         <DisclaimerCard theme={theme} />
 
         <Text style={[styles.footnote, { color: theme.textMuted }]}>
-          Bu sürümde sünnet, vitir, namaz vakti, kıble ve kamera yok. İlerleme tamamen
+          Bu sürümde sünnet, nafile, namaz vakti, kıble ve kamera yok. İlerleme tamamen
           manueldir: Sonraki / Önceki.
         </Text>
       </ScrollView>

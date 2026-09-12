@@ -21,6 +21,7 @@ export function assertPrayerIntegrity(): void {
     ikindi: 4,
     aksam: 3,
     yatsi: 4,
+    vitir: 3,
   };
 
   for (const prayer of PRAYERS) {
@@ -37,6 +38,9 @@ export function assertPrayerIntegrity(): void {
     }
     if (steps[steps.length - 1]?.kind !== 'selam') {
       fail(`${prayer.id} selam ile bitmiyor`);
+    }
+    if (count(steps, 'selam') !== 1) {
+      fail(`${prayer.id} tek selam olmalı`);
     }
 
     if (count(steps, 'kiyam') !== prayer.rakahCount) {
@@ -68,13 +72,37 @@ export function assertPrayerIntegrity(): void {
     }
 
     const lastKiyam = steps.find((step) => step.kind === 'kiyam' && step.rakah === prayer.rakahCount);
-    if (prayer.rakahCount >= 3 && lastKiyam && !lastKiyam.instruction.includes('yalnızca Fâtiha')) {
-      fail(`${prayer.id} son rekât kıyamı Fâtiha-only olmalı`);
+    if (prayer.rank === 'farz' && prayer.rakahCount >= 3) {
+      if (lastKiyam && !lastKiyam.instruction.includes('yalnızca Fâtiha')) {
+        fail(`${prayer.id} son rekât kıyamı Fâtiha-only olmalı`);
+      }
     }
 
     const firstKiyam = steps.find((step) => step.kind === 'kiyam' && step.rakah === 1);
     if (firstKiyam && !firstKiyam.instruction.includes('Sübhaneke')) {
       fail(`${prayer.id} 1. rekât Sübhaneke içermeli`);
+    }
+
+    if (prayer.kunut === 'before-ruku') {
+      const kunutSteps = steps.filter((step) => step.kind === 'kunut');
+      if (kunutSteps.length !== 1 || kunutSteps[0]?.rakah !== prayer.rakahCount) {
+        fail(`${prayer.id} son rekâtta tam bir kunut adımı olmalı`);
+      }
+      const lastKiyamIndex = steps.findIndex(
+        (step) => step.kind === 'kiyam' && step.rakah === prayer.rakahCount,
+      );
+      const kunutIndex = steps.findIndex((step) => step.kind === 'kunut');
+      const lastRukuIndex = steps.findIndex(
+        (step) => step.kind === 'ruku' && step.rakah === prayer.rakahCount,
+      );
+      if (!(lastKiyamIndex < kunutIndex && kunutIndex < lastRukuIndex)) {
+        fail(`${prayer.id} kunut, 3. rekât kıyamından sonra ve rükûdan önce olmalı`);
+      }
+      if (lastKiyam && !lastKiyam.instruction.includes('zamm-ı sure')) {
+        fail(`${prayer.id} 3. rekât kıyamında zamm-ı sure olmalı`);
+      }
+    } else if (count(steps, 'kunut') !== 0) {
+      fail(`${prayer.id} kunut içermemeli`);
     }
   }
 }

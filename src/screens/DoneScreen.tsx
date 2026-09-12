@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getPrayer, getPrayerSteps, MADHAB_LABEL } from '../data';
+import { getPrayer, getPrayerSteps, MADHAB_LABEL, rankLabel } from '../data';
 import type { Theme } from '../theme/colors';
 import type { PrayerId } from '../types/prayer';
 
@@ -24,7 +24,8 @@ export function DoneScreen({ theme, prayerId, onHome, onRepeat }: Props) {
         </Text>
         <Text style={[styles.title, { color: theme.text }]}>Namaz tamamlandı</Text>
         <Text style={[styles.lead, { color: theme.textMuted }]}>
-          {prayer.rakahCount} rekât farz, {steps.length} adım. Allah kabul etsin.
+          {prayer.rakahCount} rekât {rankLabel(prayer).toLocaleLowerCase('tr-TR')}, {steps.length}{' '}
+          adım. Allah kabul etsin.
         </Text>
 
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>

@@ -6,7 +6,7 @@ import type { Theme } from '../theme/colors';
 export function MadhabBadge({ theme }: { theme: Theme }) {
   return (
     <View style={[styles.badge, { backgroundColor: theme.badgeBg }]}>
-      <Text style={[styles.text, { color: theme.badgeText }]}>{MADHAB_LABEL} · Farz</Text>
+      <Text style={[styles.text, { color: theme.badgeText }]}>{MADHAB_LABEL} · Farz ve Vitir</Text>
     </View>
   );
 }

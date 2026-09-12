@@ -3,7 +3,7 @@ import { buildSteps } from './buildSteps';
 import { getPrayer } from './prayers';
 
 export { buildSteps, getNextTitle } from './buildSteps';
-export { DISCLAIMER, getPrayer, MADHAB_LABEL, PRAYERS } from './prayers';
+export { DISCLAIMER, getPrayer, MADHAB_LABEL, PRAYERS, RANK_LABEL, rankLabel } from './prayers';
 
 const stepCache = new Map<PrayerId, PrayerStep[]>();
 

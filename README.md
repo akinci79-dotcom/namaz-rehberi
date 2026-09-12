@@ -1,8 +1,11 @@
-# Namaz Rehberi (Hanefi · Farz)
+# Namaz Rehberi (Hanefi · Farz ve Vitir)
 
 Telefonu veya tableti namazın önüne koyup, hangi rekâtta olduğunu ve sıradaki hareketi büyük yazıyla takip etmek için kişisel bir Expo uygulaması.
 
-**Hanefi** mezhebine göre yalnızca **farz** namazlar: Sabah (2), Öğle (4), İkindi (4), Akşam (3), Yatsı (4).
+**Hanefi** mezhebine göre:
+
+- Farz: Sabah (2), Öğle (4), İkindi (4), Akşam (3), Yatsı (4)
+- Vacip: Vitir (3 rekât, tek selam; 3. rekâtta rükûdan önce kunut)
 
 Bu bir kişisel yardımcıdır; yaygın öğretilen Hanefi uygulamaya dayanır. Güvenilir bir âlime danışarak teyit ediniz. **Fetva değildir.**
 
@@ -48,7 +51,7 @@ npm run typecheck       # tsc --noEmit
 ```
 App.tsx                 # Ekranlar arası basit yönlendirme
 src/types/prayer.ts     # Namaz / adım tipleri
-src/data/prayers.ts     # Farz namaz tanımları (Hanefi)
+src/data/prayers.ts     # Farz + vitir tanımları (Hanefi)
 src/data/phrases.ts     # Kısa Arapça ibareler
 src/data/buildSteps.ts  # Rekât ve oturuş sırasını üretir
 src/data/sanity.ts      # Rekât / oturuş bütünlük kontrolü
@@ -66,6 +69,7 @@ Namaz içeriği arayüz bileşenlerine gömülü değildir. Adımlar `buildSteps
 - Son rekâtta **son oturuş** (tahiyyat, salavat, dua) ve selam
 - 1. rekâtta Sübhaneke + Eûzü; sonraki rekâtlarda yok
 - Farzın 3. ve 4. rekâtında yalnızca Fâtiha (zamm-ı sure yok)
+- **Vitir** (Hanefi, vacip): 3 rekât tek namaz, ortada selam yok; 2. rekâttan sonra ilk oturuş; 3. rekâtta Fâtiha + zamm-ı sure, sonra ayakta **kunut**, sonra rükû
 - Büyük **Sonraki** / **Önceki**, yazıya dokunarak ilerleme
 - Namaz sırasında ekranın uyanık kalması
 - Destekleyen cihazda hafif titreşim (haptic)
@@ -73,7 +77,7 @@ Namaz içeriği arayüz bileşenlerine gömülü değildir. Adımlar `buildSteps
 ## Bu sürümde yok
 
 - Kamera veya duruş algılama
-- Sünnet, vitir, nafile, kaza
+- Sünnet, nafile, kaza
 - Ezan / namaz vakti / kıble
 - Sesli kıraat kaydı
 - Kadınlara özel duruş şemaları (kısa not var; ayrıntı yok)

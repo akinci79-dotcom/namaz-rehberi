@@ -1,8 +1,10 @@
-import type { PrayerDefinition, PrayerStep, RecitationMode } from '../types/prayer';
+import type { PrayerDefinition, PrayerStep } from '../types/prayer';
 import {
   ALLAHU_AKBAR,
   DUAA_RABBENA,
   KAVME,
+  KUNUT,
+  KUNUT_TRANSLIT,
   RUKU_TASBIH,
   SALAM,
   SALAVAT,
@@ -12,11 +14,16 @@ import {
 } from './phrases';
 
 /**
- * Hanefi farz akışı — yaygın ilmihal öğretisi (erkeklere göre duruş notu; mümkün yerde nötr).
+ * Hanefi farz + vitir akışı — yaygın ilmihal öğretisi (erkeklere göre duruş notu; mümkün yerde nötr).
  *
- * Rekât içi: kıyam → rükû → kavme → 1. secde → celse → 2. secde
+ * Rekât içi (farz): kıyam → rükû → kavme → 1. secde → celse → 2. secde
  *   → (son rekât değilse) ayağa kalk  veya  (2. rekât + 3/4 rekâtlı namaz) ilk oturuş → kalk
  *   → (son rekât) son oturuş (tahiyyat, salavat, dua) → selam
+ *
+ * Vitir (Hanefi, 3 rekât tek namaz, tek selam):
+ *   2. rekâttan sonra ilk oturuş (tahiyyat), ortada selam yok, 3. rekâta kalk.
+ *   3. rekât kıyamı: Fâtiha + zamm-ı sure (farzın 3. rekâtı gibi yalnızca Fâtiha değil).
+ *   Ardından ayaktayken eller kaldırılıp tekbir, kunut, SONRA rükû (rükûdan sonra değil).
  *
  * Kıyam kıraati (farz, yaygın öğreti):
  *  - 1. rekât: Sübhaneke, Eûzü, Besmele, Fâtiha, zamm-ı sure
@@ -30,6 +37,8 @@ import {
  *    (İlk oturuşta salavat okuyan için bazı Hanefi kaynaklarda sehiv secdesi geçer; burada okunmaması öğretilir.)
  *  - Son dua metni değişebilir; Rabbenâ âtinâ yaygın bir örnektir, şart değildir.
  *  - Cehrî/sırrî imam için geçerlidir; tek başına kılan genelde içinden okur.
+ *  - Kunut lafzı değişebilir. Elleri tekbirden sonra yeniden bağlamak yaygın Hanefi öğretidir;
+ *    kunut boyunca avuç açan da vardır. Bu sürümde tekbir → tekrar bağla → kunut → rükû.
  */
 export function buildSteps(prayer: PrayerDefinition): PrayerStep[] {
   const steps: PrayerStep[] = [];
@@ -50,7 +59,7 @@ export function buildSteps(prayer: PrayerDefinition): PrayerStep[] {
     rakah: 1,
     kind: 'niyet',
     title: 'Niyet',
-    instruction: `Kalbinden ${prayer.name} namazının ${total} rekât farzını Allah rızası için kılmaya niyet et. Dil ile söylemek Hanefi'de şart değildir; öğrenirken örnek: “Niyet ettim Allah rızası için bugünkü ${prayer.name.toLocaleLowerCase('tr-TR')} namazının farzını kılmaya.”`,
+    instruction: niyetInstruction(prayer),
   });
 
   push({
@@ -63,7 +72,19 @@ export function buildSteps(prayer: PrayerDefinition): PrayerStep[] {
   });
 
   for (let rakah = 1; rakah <= total; rakah += 1) {
-    push(kiyamStep(rakah, total, prayer.recitation));
+    push(kiyamStep(prayer, rakah));
+
+    if (prayer.kunut === 'before-ruku' && rakah === total) {
+      push({
+        rakah,
+        kind: 'kunut',
+        title: 'Kunut',
+        instruction:
+          'Hâlâ ayaktayken ellerini iftitah gibi kaldırıp Allahü Ekber de; sonra tekrar bağla. Kunut duasını oku. Lafız hocaya göre değişebilir; yaygın örnek Allahümme innâ nestaînüke…’dir. Kunut bittikten sonra rükûya gidilir — Hanefi’de kunut rükûdan sonraya bırakılmaz.\n\n' +
+          KUNUT_TRANSLIT,
+        arabic: KUNUT,
+      });
+    }
 
     push({
       rakah,
@@ -129,7 +150,9 @@ export function buildSteps(prayer: PrayerDefinition): PrayerStep[] {
         kind: 'selam',
         title: 'Selam',
         instruction:
-          'Önce sağa, sonra sola dönerek “Es-selâmü aleyküm ve rahmetullah” de. Namaz tamamlanır.',
+          prayer.id === 'vitir'
+            ? 'Önce sağa, sonra sola “Es-selâmü aleyküm ve rahmetullah” de. Vitir üç rekât tek namazdır; selam yalnızca buradadır.'
+            : 'Önce sağa, sonra sola dönerek “Es-selâmü aleyküm ve rahmetullah” de. Namaz tamamlanır.',
         arabic: SALAM,
         sitting: 'last',
       });
@@ -139,7 +162,9 @@ export function buildSteps(prayer: PrayerDefinition): PrayerStep[] {
         kind: 'tahiyyat',
         title: 'İlk oturuş',
         instruction:
-          'İkinci rekâtın ikinci secdesinden sonra otur. Yalnızca Ettehiyyâtü’yü oku. Salavat bu oturuşta okunmaz. Bitince üçüncü rekâta kalkılacak.',
+          prayer.id === 'vitir'
+            ? 'İkinci rekâtın ikinci secdesinden sonra otur. Yalnızca Ettehiyyâtü’yü oku. Salavat ve selam yok — vitir üç rekât bir bütündür. Bitince üçüncü rekâta kalkılacak.'
+            : 'İkinci rekâtın ikinci secdesinden sonra otur. Yalnızca Ettehiyyâtü’yü oku. Salavat bu oturuşta okunmaz. Bitince üçüncü rekâta kalkılacak.',
         arabic: TAHIYYAT,
         sitting: 'first',
       });
@@ -165,13 +190,20 @@ export function buildSteps(prayer: PrayerDefinition): PrayerStep[] {
   return steps;
 }
 
+function niyetInstruction(prayer: PrayerDefinition): string {
+  if (prayer.rank === 'vacip') {
+    return 'Kalbinden üç rekât vitir namazını Allah rızası için kılmaya niyet et (Hanefi’de vacip). Üç rekât tek namazdır; ilk iki rekâttan sonra selam yoktur. Dil ile söylemek şart değildir; örnek: “Niyet ettim Allah rızası için vitir namazına.”';
+  }
+
+  return `Kalbinden ${prayer.name} namazının ${prayer.rakahCount} rekât farzını Allah rızası için kılmaya niyet et. Dil ile söylemek Hanefi'de şart değildir; öğrenirken örnek: “Niyet ettim Allah rızası için bugünkü ${prayer.name.toLocaleLowerCase('tr-TR')} namazının farzını kılmaya.”`;
+}
+
 function kiyamStep(
+  prayer: PrayerDefinition,
   rakah: number,
-  total: number,
-  recitation: RecitationMode,
 ): Omit<PrayerStep, 'id' | 'prayerId' | 'totalRakah'> {
-  const voiceHint = recitationHint(rakah, recitation);
-  const hasZammSure = rakah <= 2;
+  const voiceHint = recitationHint(prayer, rakah);
+  const hasZammSure = rakah <= 2 || prayer.rank === 'vacip';
 
   if (rakah === 1) {
     return {
@@ -184,11 +216,15 @@ function kiyamStep(
   }
 
   if (hasZammSure) {
+    const vitirThird =
+      prayer.kunut === 'before-ruku' && rakah === prayer.rakahCount
+        ? ' Bu rekâttan sonra hemen rükûya inilmez; kunut okunacak.'
+        : '';
     return {
       rakah,
       kind: 'kiyam',
       title: 'Kıyam',
-      instruction: `Ayakta: Besmele, Fâtiha ve zamm-ı sure oku. Sübhaneke ve Eûzü bu rekâtta tekrarlanmaz. ${voiceHint}`,
+      instruction: `Ayakta: Besmele, Fâtiha ve zamm-ı sure oku. Sübhaneke ve Eûzü bu rekâtta tekrarlanmaz. ${voiceHint}${vitirThird}`,
     };
   }
 
@@ -196,12 +232,15 @@ function kiyamStep(
     rakah,
     kind: 'kiyam',
     title: 'Kıyam',
-    instruction: `Ayakta: Besmele ve yalnızca Fâtiha oku. Farzın ${total === 3 ? 'üçüncü' : 'üçüncü ve dördüncü'} rekâtında zamm-ı sure okunmaz (yaygın Hanefi öğreti). ${voiceHint}`,
+    instruction: `Ayakta: Besmele ve yalnızca Fâtiha oku. Farzın ${prayer.rakahCount === 3 ? 'üçüncü' : 'üçüncü ve dördüncü'} rekâtında zamm-ı sure okunmaz (yaygın Hanefi öğreti). ${voiceHint}`,
   };
 }
 
-function recitationHint(rakah: number, recitation: RecitationMode): string {
-  if (recitation === 'sirri') {
+function recitationHint(prayer: PrayerDefinition, rakah: number): string {
+  if (prayer.id === 'vitir') {
+    return 'Tek başına genelde içinden okunur; Ramazan cemaatinde imam açıktan okuyabilir.';
+  }
+  if (prayer.recitation === 'sirri') {
     return 'Kıraat gizlidir (öğle / ikindi).';
   }
   if (rakah <= 2) {
