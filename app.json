@@ -21,7 +21,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "single",
+      "name": "Namaz Rehberi",
+      "shortName": "Namaz",
+      "lang": "tr",
+      "themeColor": "#0C100E",
+      "backgroundColor": "#0C100E",
+      "display": "standalone"
     }
   }
 }

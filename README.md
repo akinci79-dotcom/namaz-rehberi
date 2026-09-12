@@ -9,7 +9,23 @@ Telefonu veya tableti namazın önüne koyup, hangi rekâtta olduğunu ve sırad
 
 Bu bir kişisel yardımcıdır; yaygın öğretilen Hanefi uygulamaya dayanır. Güvenilir bir âlime danışarak teyit ediniz. **Fetva değildir.**
 
-## iPhone’da denemek (Expo Go)
+## iPad / iPhone’da hemen açmak (Safari)
+
+Bilgisayar veya Expo Go gerekmez. Safari’de şu adresi açın:
+
+**https://akinci79-dotcom.github.io/namaz-rehberi/**
+
+İsteğe bağlı: Safari’de **Paylaş → Ana Ekrana Ekle**. Uygulama gibi tam ekran açılır (adres çubuğu gizlenir).
+
+Kaynak: `npx expo export -p web` çıktısı GitHub Pages’te yayınlanır. Güncellemek için:
+
+```bash
+npm run export:web
+```
+
+Ardından `dist/` içeriğini Pages sitesine kopyalayın.
+
+## iPhone’da denemek (Expo Go, geliştirme)
 
 App Store veya TestFlight gerekmez.
 
