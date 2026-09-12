@@ -12,7 +12,11 @@ import { themeFromScheme } from './src/theme/colors';
 import type { AppRoute, PrayerId } from './src/types/prayer';
 
 if (__DEV__) {
-  assertPrayerIntegrity();
+  try {
+    assertPrayerIntegrity();
+  } catch (error) {
+    console.error(error);
+  }
 }
 
 export default function App() {

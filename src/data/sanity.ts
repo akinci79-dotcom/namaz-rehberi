@@ -15,18 +15,10 @@ function count(steps: PrayerStep[], kind: PrayerStep['kind']): number {
  * Yanlış bir adım dizisi sessizce yayınlanmasın diye.
  */
 export function assertPrayerIntegrity(): void {
-  const expectedRakah: Record<PrayerId, number> = {
-    sabah: 2,
-    ogle: 4,
-    ikindi: 4,
-    aksam: 3,
-    yatsi: 4,
-    vitir: 3,
-  };
-
   for (const prayer of PRAYERS) {
-    if (prayer.rakahCount !== expectedRakah[prayer.id]) {
-      fail(`${prayer.id} rekât sayısı ${prayer.rakahCount}, beklenen ${expectedRakah[prayer.id]}`);
+    const expected = expectedRakahCount(prayer.id);
+    if (prayer.rakahCount !== expected) {
+      fail(`${prayer.id} rekât sayısı ${prayer.rakahCount}, beklenen ${expected}`);
     }
 
     const steps = buildSteps(prayer);
@@ -103,6 +95,24 @@ export function assertPrayerIntegrity(): void {
       }
     } else if (count(steps, 'kunut') !== 0) {
       fail(`${prayer.id} kunut içermemeli`);
+    }
+  }
+}
+
+function expectedRakahCount(id: PrayerId): number {
+  switch (id) {
+    case 'sabah':
+      return 2;
+    case 'ogle':
+    case 'ikindi':
+    case 'yatsi':
+      return 4;
+    case 'aksam':
+    case 'vitir':
+      return 3;
+    default: {
+      const unknown: never = id;
+      fail(`beklenmeyen namaz: ${String(unknown)}`);
     }
   }
 }
