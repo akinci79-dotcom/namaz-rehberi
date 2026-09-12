@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const dist = join(process.cwd(), 'dist');
@@ -39,6 +39,30 @@ writeFileSync(join(dist, '.nojekyll'), '');
 const iconSrc = join(process.cwd(), 'assets', 'icon.png');
 if (existsSync(iconSrc)) {
   copyFileSync(iconSrc, join(dist, 'apple-touch-icon.png'));
+}
+
+const publicDir = join(process.cwd(), 'public');
+for (const name of ['manifest.webmanifest', 'apple-touch-icon.png']) {
+  const src = join(publicDir, name);
+  if (existsSync(src)) {
+    copyFileSync(src, join(dist, name));
+  }
+}
+
+const modelsSrc = join(publicDir, 'models');
+if (existsSync(modelsSrc)) {
+  cpSync(modelsSrc, join(dist, 'models'), { recursive: true });
+}
+
+const bundleSrc = join(publicDir, 'mediapipe', 'vision_bundle.mjs');
+mkdirSync(join(dist, 'mediapipe'), { recursive: true });
+if (existsSync(bundleSrc)) {
+  copyFileSync(bundleSrc, join(dist, 'mediapipe', 'vision_bundle.mjs'));
+}
+
+const wasmSrc = join(process.cwd(), 'node_modules/@mediapipe/tasks-vision/wasm');
+if (existsSync(wasmSrc)) {
+  cpSync(wasmSrc, join(dist, 'mediapipe', 'wasm'), { recursive: true });
 }
 
 console.log('Web dist iOS/Safari için hazırlandı.');

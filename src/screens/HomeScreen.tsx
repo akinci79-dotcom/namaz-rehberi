@@ -43,8 +43,8 @@ export function HomeScreen({ theme, onSelect }: Props) {
         <DisclaimerCard theme={theme} />
 
         <Text style={[styles.footnote, { color: theme.textMuted }]}>
-          Bu sürümde sünnet, nafile, namaz vakti, kıble ve kamera yok. İlerleme tamamen
-          manueldir: Sonraki / Önceki.
+          Sünnet ve nafile yok. İlerleme Sonraki / Önceki ile veya isteğe bağlı kamera
+          yardımcısıyla (görüntü cihazda kalır) yapılır.
         </Text>
       </ScrollView>
     </SafeAreaView>

@@ -25,6 +25,17 @@ npm run export:web
 
 Ardından `dist/` içeriğini Pages sitesine kopyalayın.
 
+### Kamera yardımcısı (iPad / iPhone Safari)
+
+Namaz ekranında **Kamera yardımcısı**nı açın. Ön kamera duruşu tanır (kıyam, rükû, secde, oturuş) ve sıradaki **farklı** duruş gelince adımı ilerletir.
+
+- Görüntü **yalnızca cihazda** işlenir; kareler yüklenmez ve kaydedilmez.
+- Kamera için **HTTPS** gerekir; bu Pages adresi zaten HTTPS.
+- Safari’de ilk seferde kameraya izin verin. Reddedilirse Ayarlar → Safari → Kamera.
+- Tableti önünüze, mümkünse gövdeniz görünecek şekilde koyun.
+- Niyet → tekbir gibi **aynı duruştaki** adımlar için Sonraki’ye dokunun.
+- Kamera olmasa da Sonraki / Önceki her zaman çalışır.
+
 ## iPhone’da denemek (Expo Go, geliştirme)
 
 App Store veya TestFlight gerekmez.
@@ -71,8 +82,9 @@ src/data/prayers.ts     # Farz + vitir tanımları (Hanefi)
 src/data/phrases.ts     # Kısa Arapça ibareler
 src/data/buildSteps.ts  # Rekât ve oturuş sırasını üretir
 src/data/sanity.ts      # Rekât / oturuş bütünlük kontrolü
+src/pose/               # Kamera duruş algılama (cihaz içi)
 src/screens/            # Ana sayfa, aktif namaz, özet
-src/components/         # Kart, uyarı, ilerleme
+src/components/         # Kart, uyarı, ilerleme, kamera çubuğu
 src/theme/colors.ts     # Koyu / açık tema
 ```
 
@@ -89,10 +101,11 @@ Namaz içeriği arayüz bileşenlerine gömülü değildir. Adımlar `buildSteps
 - Büyük **Sonraki** / **Önceki**, yazıya dokunarak ilerleme
 - Namaz sırasında ekranın uyanık kalması
 - Destekleyen cihazda hafif titreşim (haptic)
+- İsteğe bağlı **kamera yardımcısı** (ön kamera, cihazda MediaPipe; otomatik adım)
 
 ## Bu sürümde yok
 
-- Kamera veya duruş algılama
+- Sunucuya görüntü yükleme / kayıt
 - Sünnet, nafile, kaza
 - Ezan / namaz vakti / kıble
 - Sesli kıraat kaydı

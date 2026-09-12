@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -10,10 +10,15 @@ import {
 import { useKeepAwake } from 'expo-keep-awake';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CameraAssistBar } from '../components/CameraAssistBar';
+import { PrivacyModal } from '../components/PrivacyModal';
 import { StepProgress } from '../components/StepProgress';
 import { getNextTitle, getPrayer, getPrayerSteps, MADHAB_LABEL, rankLabel } from '../data';
+import { usePoseAssist } from '../pose/usePoseAssist';
 import type { Theme } from '../theme/colors';
 import type { PrayerId, SittingKind } from '../types/prayer';
+
+const PRIVACY_KEY = 'namaz.cameraPrivacy.v1';
 
 interface Props {
   theme: Theme;
@@ -50,6 +55,45 @@ export function PrayerScreen({
   const nextTitle = getNextTitle(steps, stepIndex);
   const isFirst = stepIndex <= 0;
   const isLast = stepIndex >= steps.length - 1;
+  const [cameraOn, setCameraOn] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+
+  const goPrev = useCallback(() => {
+    if (isFirst) {
+      return;
+    }
+    onHaptic('light');
+    onIndexChange(stepIndex - 1);
+  }, [isFirst, onHaptic, onIndexChange, stepIndex]);
+
+  const goNext = useCallback(() => {
+    onHaptic('medium');
+    if (isLast) {
+      onComplete();
+      return;
+    }
+    onIndexChange(stepIndex + 1);
+  }, [isLast, onComplete, onHaptic, onIndexChange, stepIndex]);
+
+  const assist = usePoseAssist({
+    enabled: cameraOn,
+    steps,
+    stepIndex,
+    onAdvance: goNext,
+  });
+
+  const requestCamera = () => {
+    if (cameraOn) {
+      setCameraOn(false);
+      return;
+    }
+    const accepted = typeof localStorage !== 'undefined' && localStorage.getItem(PRIVACY_KEY) === '1';
+    if (!accepted) {
+      setPrivacyOpen(true);
+      return;
+    }
+    setCameraOn(true);
+  };
 
   if (!step) {
     return (
@@ -63,23 +107,6 @@ export function PrayerScreen({
       </SafeAreaView>
     );
   }
-
-  const goPrev = () => {
-    if (isFirst) {
-      return;
-    }
-    onHaptic('light');
-    onIndexChange(stepIndex - 1);
-  };
-
-  const goNext = () => {
-    onHaptic('medium');
-    if (isLast) {
-      onComplete();
-      return;
-    }
-    onIndexChange(stepIndex + 1);
-  };
 
   const titleSize = isWide ? 56 : 42;
 
@@ -107,6 +134,26 @@ export function PrayerScreen({
         </View>
 
         <StepProgress index={stepIndex} total={steps.length} theme={theme} />
+
+        <CameraAssistBar
+          theme={theme}
+          enabled={cameraOn}
+          onToggle={requestCamera}
+          assist={assist}
+        />
+
+        <PrivacyModal
+          visible={privacyOpen}
+          theme={theme}
+          onCancel={() => setPrivacyOpen(false)}
+          onAccept={() => {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem(PRIVACY_KEY, '1');
+            }
+            setPrivacyOpen(false);
+            setCameraOn(true);
+          }}
+        />
 
         <ScrollView
           style={styles.stageScroll}
@@ -154,7 +201,9 @@ export function PrayerScreen({
             </View>
 
             <Text style={[styles.tapHint, { color: theme.textMuted }]}>
-              İlerlemek için yazıya dokun
+              {cameraOn
+                ? 'Duruş değişince otomatik ilerler. Aynı duruşta veya takılınca Sonraki’ye dokun.'
+                : 'İlerlemek için yazıya dokun veya kamera yardımcısını aç'}
             </Text>
           </Pressable>
         </ScrollView>

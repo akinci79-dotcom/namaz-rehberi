@@ -11,10 +11,12 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "check:prayers": "npx --yes tsx scripts/check-prayers.ts",
+    "check:pose": "npx --yes tsx scripts/check-pose.ts",
     "export:web": "expo export -p web && node scripts/prepare-web-dist.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.15",
+    "@mediapipe/tasks-vision": "^1.0.1",
     "expo": "~57.0.22",
     "expo-haptics": "~57.0.3",
     "expo-keep-awake": "~57.0.2",

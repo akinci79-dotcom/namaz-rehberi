@@ -43,3 +43,9 @@ yarn-error.*
 # workspace / agent
 agent-tools/
 .claude/
+check_vitir_steps.mjs
+verify_kunut.mjs
+verify_niyet.mjs
+
+# MediaPipe wasm (export sırasında kopyalanır)
+public/mediapipe/wasm/
