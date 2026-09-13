@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { PrayerStep } from '../types/prayer';
+import {
+  cameraDebugLine,
+  cameraStatusText,
+  tickCameraAdvance,
+  type AdvanceHint,
+  type CameraTickResult,
+} from './cameraAdvance';
 import { classifyPose } from './classifyPose';
 import { createPoseLandmarker, type PoseLandmarkerHandle } from './mediapipe';
 import { cameraSupported, isWebRuntime } from './publicUrl';
-import {
-  canAdvanceOnDetectedPose,
-  poseForStepKind,
-  poseWaitFallbackMs,
-  requireSeenPoseBeforeAdvance,
-  samePoseDwellMs,
-} from './stepPose';
+import { poseForStepKind } from './stepPose';
 import type { BodyPose, Framing } from './types';
-import { POSE_CUE_TR, POSE_LABEL_TR } from './types';
+import { POSE_CUE_TR } from './types';
 
 export type AssistStatus =
   | 'off'
@@ -23,9 +24,7 @@ export type AssistStatus =
   | 'unsupported'
   | 'error';
 
-const HOLD_MS = 1000;
-const SEEN_HOLD_MS = 450;
-const COOLDOWN_MS = 1100;
+const COOLDOWN_MS = 500;
 const FRAME_MS = 140;
 
 interface Options {
@@ -43,15 +42,29 @@ export interface PoseAssistState {
   cue: string | null;
   countdownSec: number | null;
   statusText: string;
+  debugLine: string;
+  advanceHint: AdvanceHint;
+  expectedPose: BodyPose | null;
   attachPreview: (host: HTMLElement | null) => void;
 }
+
+const IDLE_TICK: CameraTickResult = {
+  advance: false,
+  hint: 'none',
+  seenCurrent: false,
+  currentPose: 'unknown',
+  expectedPose: null,
+  waitingFor: null,
+  secde2Confirmed: false,
+  samePose: false,
+};
 
 export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options): PoseAssistState {
   const [status, setStatus] = useState<AssistStatus>('off');
   const [detected, setDetected] = useState<BodyPose>('unknown');
   const [framing, setFraming] = useState<Framing>('none');
-  const [countdownSec, setCountdownSec] = useState<number | null>(null);
   const [loadMessage, setLoadMessage] = useState<string | null>(null);
+  const [tick, setTick] = useState<CameraTickResult>(IDLE_TICK);
 
   const onAdvanceRef = useRef(onAdvance);
   onAdvanceRef.current = onAdvance;
@@ -71,19 +84,13 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     }
   };
 
-  const current = steps[stepIndex];
-  const next = steps[stepIndex + 1];
-  const currentPose = current ? poseForStepKind(current.kind) : null;
-  const nextPose = next ? poseForStepKind(next.kind) : null;
-  const waitingFor = currentPose && nextPose && currentPose !== nextPose ? nextPose : null;
-
   useEffect(() => {
     if (!enabled) {
       setStatus('off');
       setDetected('unknown');
       setFraming('none');
-      setCountdownSec(null);
       setLoadMessage(null);
+      setTick(IDLE_TICK);
       return;
     }
 
@@ -98,99 +105,75 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     let landmarker: PoseLandmarkerHandle | null = null;
     let raf = 0;
     let lastFrame = 0;
-    let holdStarted = 0;
+    let lastTickAt = 0;
     let lastAdvance = 0;
-    let timerAnchor = performance.now();
-    let timerStep = -1;
-    let seenCurrentPose = false;
-    let seenCurrentAt = 0;
+    let gateStep = -1;
+    let seenCurrentMs = 0;
+    let matchingNextMs = 0;
+    let currentCommitted = false;
     let prevPose: BodyPose | undefined;
     let stablePose: BodyPose = 'unknown';
     let publishedPose: BodyPose = 'unknown';
     let stableCount = 0;
+    let modelReady = false;
 
     const mountVideo = (video: HTMLVideoElement) => {
       videoRef.current = video;
       const host = previewHostRef.current;
-      if (host && video.parentElement !== host) {
+      if (host && video && video.parentElement !== host) {
         host.innerHTML = '';
         host.appendChild(video);
       }
     };
 
-    const advance = (now: number) => {
-      lastAdvance = now;
-      holdStarted = 0;
-      timerAnchor = now;
-      timerStep = stepIndexRef.current + 1;
-      onAdvanceRef.current();
-    };
-
-    const runTimers = (now: number, pose: BodyPose) => {
+    const runGate = (now: number, pose: BodyPose) => {
       const idx = stepIndexRef.current;
       const list = stepsRef.current;
       const here = list[idx];
       if (!here) {
         return;
       }
-      if (timerStep !== idx) {
-        timerStep = idx;
-        timerAnchor = now;
-        holdStarted = 0;
-        seenCurrentPose = false;
-        seenCurrentAt = 0;
+      if (gateStep !== idx) {
+        gateStep = idx;
+        seenCurrentMs = 0;
+        matchingNextMs = 0;
+        currentCommitted = false;
       }
       if (now - lastAdvance < COOLDOWN_MS) {
         return;
       }
 
+      const dt = lastTickAt ? Math.min(now - lastTickAt, 250) : 0;
+      lastTickAt = now;
       const nxt = list[idx + 1];
       const from = poseForStepKind(here.kind);
       const to = nxt ? poseForStepKind(nxt.kind) : null;
-      const samePose = !to || from === to;
-      if (pose === from && pose !== 'unknown') {
-        if (!seenCurrentPose) {
-          seenCurrentAt = now;
-        }
-        seenCurrentPose = true;
-      }
-      const currentCommitted = seenCurrentPose && now - seenCurrentAt >= SEEN_HOLD_MS;
 
-      if (samePose) {
-        const dwell = samePoseDwellMs(here);
-        const left = Math.max(0, dwell - (now - timerAnchor));
-        setCountdownSec(Math.ceil(left / 1000));
-        if (left <= 0) {
-          setCountdownSec(null);
-          advance(now);
+      if (pose === from) {
+        seenCurrentMs += dt;
+        if (seenCurrentMs >= 400) {
+          currentCommitted = true;
         }
-        return;
+      }
+      if (to && pose === to) {
+        matchingNextMs += dt;
+      } else {
+        matchingNextMs = 0;
       }
 
-      if (canAdvanceOnDetectedPose({ seenCurrentPose: currentCommitted, detected: pose, nextPose: to })) {
-        if (!holdStarted) {
-          holdStarted = now;
-        }
-        const leftHold = Math.max(0, HOLD_MS - (now - holdStarted));
-        setCountdownSec(leftHold > 0 ? 1 : null);
-        if (now - holdStarted >= HOLD_MS) {
-          setCountdownSec(null);
-          advance(now);
-        }
-        return;
-      }
-
-      holdStarted = 0;
-      if (requireSeenPoseBeforeAdvance(here.kind) && !currentCommitted) {
-        setCountdownSec(null);
-        return;
-      }
-      const fallback = poseWaitFallbackMs(here);
-      const left = Math.max(0, fallback - (now - timerAnchor));
-      setCountdownSec(Math.ceil(left / 1000));
-      if (left <= 0) {
-        setCountdownSec(null);
-        advance(now);
+      const result = tickCameraAdvance({
+        currentKind: here.kind,
+        nextKind: nxt?.kind,
+        detected: pose,
+        seenCurrentMs: currentCommitted ? Math.max(seenCurrentMs, 400) : seenCurrentMs,
+        matchingNextMs,
+        modelReady,
+      });
+      setTick(result);
+      if (result.advance) {
+        lastAdvance = now;
+        matchingNextMs = 0;
+        onAdvanceRef.current();
       }
     };
 
@@ -238,11 +221,13 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
 
         try {
           landmarker = await createPoseLandmarker();
+          modelReady = true;
         } catch {
           landmarker = null;
+          modelReady = false;
           if (!cancelled) {
             setStatus('degraded');
-            setLoadMessage('Duruş modeli yüklenemedi. Adımlar zamanlayıcıyla ilerleyecek.');
+            setLoadMessage('Duruş modeli yüklenemedi. Yalnızca Sonraki / Önceki.');
           }
         }
 
@@ -256,10 +241,10 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
           setLoadMessage(null);
         }
 
-        timerAnchor = performance.now();
-        timerStep = stepIndexRef.current;
+        lastTickAt = performance.now();
+        gateStep = stepIndexRef.current;
 
-        const tick = () => {
+        const loop = () => {
           if (cancelled) {
             return;
           }
@@ -301,14 +286,11 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
             mountVideo(video);
           }
 
-          if (statusAllowsTimers()) {
-            runTimers(now, pose);
-          }
-          raf = requestAnimationFrame(tick);
+          runGate(now, pose);
+          raf = requestAnimationFrame(loop);
         };
 
-        const statusAllowsTimers = () => true;
-        raf = requestAnimationFrame(tick);
+        raf = requestAnimationFrame(loop);
       } catch (error) {
         if (cancelled) {
           return;
@@ -343,102 +325,48 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     };
   }, [enabled]);
 
-  const statusText = useMemo(
-    () =>
-      buildStatusText({
-        enabled,
-        status,
-        loadMessage,
-        detected,
-        framing,
-        waitingFor,
-        current,
-        next,
-        countdownSec,
-      }),
-    [enabled, status, loadMessage, detected, framing, waitingFor, current, next, countdownSec],
-  );
+  const statusText = useMemo(() => {
+    if (!enabled) {
+      return 'Kapalı — duruşla ilerleme yok';
+    }
+    if (status === 'loading') {
+      return loadMessage ?? 'Yükleniyor…';
+    }
+    if (status === 'denied' || status === 'unsupported' || status === 'error') {
+      return loadMessage ?? 'Kamera kullanılamıyor.';
+    }
+    if (status === 'degraded' && loadMessage) {
+      return loadMessage;
+    }
+    return cameraStatusText({
+      framingClose: framing === 'close',
+      bodyMissing: framing === 'none' && detected === 'unknown',
+      detected,
+      tick,
+    });
+  }, [enabled, status, loadMessage, framing, detected, tick]);
+
+  const debugLine = useMemo(() => cameraDebugLine(detected, tick), [detected, tick]);
 
   const cue =
-    waitingFor &&
-    waitingFor !== 'unknown' &&
+    tick.waitingFor &&
+    tick.waitingFor !== 'unknown' &&
     enabled &&
-    (status === 'running' || status === 'degraded')
-      ? POSE_CUE_TR[waitingFor]
+    status === 'running'
+      ? POSE_CUE_TR[tick.waitingFor]
       : null;
 
   return {
     status,
     detected,
     framing,
-    waitingFor,
+    waitingFor: tick.waitingFor,
     cue,
-    countdownSec,
+    countdownSec: null,
     statusText,
+    debugLine,
+    advanceHint: tick.hint,
+    expectedPose: tick.expectedPose,
     attachPreview,
   };
-}
-
-function buildStatusText(input: {
-  enabled: boolean;
-  status: AssistStatus;
-  loadMessage: string | null;
-  detected: BodyPose;
-  framing: Framing;
-  waitingFor: BodyPose | null;
-  current: PrayerStep | undefined;
-  next: PrayerStep | undefined;
-  countdownSec: number | null;
-}): string {
-  const { enabled, status, loadMessage, detected, framing, waitingFor, current, next, countdownSec } =
-    input;
-  if (!enabled) {
-    return 'Kapalı — duruşla otomatik ilerleme yok';
-  }
-  if (status === 'loading') {
-    return loadMessage ?? 'Yükleniyor…';
-  }
-  if (status === 'denied' || status === 'unsupported' || status === 'error') {
-    return loadMessage ?? 'Kamera kullanılamıyor.';
-  }
-  if (status === 'degraded' && loadMessage) {
-    const extra =
-      countdownSec != null && next
-        ? ` ${countdownSec} sn sonra: ${next.title}.`
-        : '';
-    return loadMessage + extra;
-  }
-
-  if (framing === 'none' && detected === 'unknown') {
-    const extra = countdownSec != null ? ` ${countdownSec} sn sonra otomatik ilerler.` : '';
-    return `Vücut görünmüyor — telefonu uzaklaştırın, baş-omuz-bel kadraja girsin.${extra}`;
-  }
-  if (framing === 'close') {
-    const extra = countdownSec != null ? ` ${countdownSec} sn sonra otomatik.` : '';
-    return `Yüz çok yakın — telefonu biraz uzaklaştırın, tüm gövde kadraja girsin.${extra}`;
-  }
-
-  if (waitingFor && waitingFor !== 'unknown') {
-    const cue = POSE_CUE_TR[waitingFor];
-    if (detected === waitingFor) {
-      return `${POSE_LABEL_TR[detected]} algılandı — geçiliyor`;
-    }
-    if (detected !== 'unknown' && current && detected === poseForStepKind(current.kind)) {
-      return `${POSE_LABEL_TR[detected]} duruyor. ${cue}${
-        countdownSec != null ? ` (yedek ${countdownSec} sn)` : ''
-      }`;
-    }
-    return `${cue}${countdownSec != null ? ` · yedek ${countdownSec} sn` : ''}`;
-  }
-
-  if (next && countdownSec != null) {
-    const seen =
-      detected !== 'unknown' ? `${POSE_LABEL_TR[detected]} algılandı. ` : '';
-    return `${seen}${countdownSec} sn sonra: ${next.title}`;
-  }
-
-  if (detected !== 'unknown') {
-    return `${POSE_LABEL_TR[detected]} algılandı`;
-  }
-  return 'Hazır';
 }

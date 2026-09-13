@@ -36,6 +36,9 @@ export function CameraAssistBar({ theme, enabled, onToggle, assist }: Props) {
           </Text>
         </Pressable>
         <Text style={[styles.status, { color: theme.textMuted }]}>{assist.statusText}</Text>
+        {enabled ? (
+          <Text style={[styles.debug, { color: theme.textMuted }]}>{assist.debugLine}</Text>
+        ) : null}
       </View>
     </View>
   );
@@ -107,5 +110,10 @@ const styles = StyleSheet.create({
   status: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  debug: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontVariant: ['tabular-nums'],
   },
 });

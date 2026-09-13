@@ -16,6 +16,7 @@ import { StepProgress } from '../components/StepProgress';
 import { VoiceToggle } from '../components/VoiceToggle';
 import { getNextTitle, getPrayer, getPrayerSteps, MADHAB_LABEL, rankLabel } from '../data';
 import { usePoseAssist } from '../pose/usePoseAssist';
+import { usePracticeTimer } from '../pose/usePracticeTimer';
 import type { Theme } from '../theme/colors';
 import type { PrayerId, SittingKind } from '../types/prayer';
 import { isVoiceMuted, setVoiceMuted, unlockSpeech } from '../voice/speech';
@@ -86,6 +87,13 @@ export function PrayerScreen({
 
   const assist = usePoseAssist({
     enabled: cameraOn,
+    steps,
+    stepIndex,
+    onAdvance: advanceStep,
+  });
+
+  usePracticeTimer({
+    enabled: !cameraOn,
     steps,
     stepIndex,
     onAdvance: advanceStep,
@@ -165,6 +173,11 @@ export function PrayerScreen({
           onToggle={requestCamera}
           assist={assist}
         />
+        {!cameraOn ? (
+          <Text style={[styles.practiceLabel, { color: theme.textMuted }]}>
+            Süre ile prova (kamerasız)
+          </Text>
+        ) : null}
 
         <PrivacyModal
           visible={privacyOpen}
@@ -231,8 +244,8 @@ export function PrayerScreen({
 
             <Text style={[styles.tapHint, { color: theme.textMuted }]}>
               {cameraOn
-                ? 'İkinci secdeden kalkış veya oturuşta cihaz bir kez sayı der. Rükûdan doğrulma konuşmaz.'
-                : 'İkinci secdeden kalkış veya oturuşta cihaz bir kez sayı der. İlerlemek için dokunun veya kamerayı açın.'}
+                ? 'Kamera açık: adım yalnızca duruşla veya Sonraki ile geçer. Süreyle ilerlemez.'
+                : 'Süre ile prova (kamerasız). Dokunarak da geçebilirsiniz. Rekât bitince bir kez sayı.'}
             </Text>
           </Pressable>
         </ScrollView>
@@ -381,6 +394,11 @@ const styles = StyleSheet.create({
   nextTitle: {
     fontSize: 22,
     fontWeight: '700',
+  },
+  practiceLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   tapHint: {
     fontSize: 14,

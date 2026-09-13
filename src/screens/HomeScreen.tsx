@@ -48,8 +48,8 @@ export function HomeScreen({ theme, onSelect }: Props) {
 
         <Text style={[styles.footnote, { color: theme.textMuted }]}>
           Sünnet ve nafile yok. Rekât bitince cihaz bir kez “bir / iki / üç / dört”
-          der. Kamera aynı duruşu zamanlayıcıyla, rükû/secdeyi duruşla ilerletir.
-          Görüntü ve ses cihazda kalır.
+          der. Kamera açıkken süreyle ilerlemez; rükû/secde görünce geçer. Kamerasız
+          “süre ile prova” vardır. Görüntü ve ses cihazda kalır.
         </Text>
       </ScrollView>
     </SafeAreaView>

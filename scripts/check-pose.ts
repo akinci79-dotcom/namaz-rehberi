@@ -3,6 +3,11 @@ import { samePoseDwellMs } from '../src/pose/stepPose';
 import type { PoseLandmark } from '../src/pose/types';
 import type { PrayerStep } from '../src/types/prayer';
 import { getPrayerSteps, PRAYERS } from '../src/data';
+import {
+  cameraIdleWouldAdvance,
+  CAMERA_HOLD_MS,
+  tickCameraAdvance,
+} from '../src/pose/cameraAdvance';
 import { canAdvanceOnDetectedPose, requireSeenPoseBeforeAdvance } from '../src/pose/stepPose';
 import { completedRakahAnnouncements } from '../src/voice/rakahComplete';
 import { rakahNumberWord, transitionCueForStepKind } from '../src/voice/speech';
@@ -203,6 +208,83 @@ if (
 }
 if (!requireSeenPoseBeforeAdvance('secde2') || requireSeenPoseBeforeAdvance('kavme')) {
   console.log('FAIL seen-pose requirement');
+  failed += 1;
+}
+
+const idle30 = { duration: 30_000 as const };
+if (
+  cameraIdleWouldAdvance(
+    { currentKind: 'kiyam', nextKind: 'ruku', detected: 'kiyam', modelReady: true },
+    idle30.duration,
+  )
+) {
+  console.log('FAIL camera advanced after 30s standing on kıyam (timer leak)');
+  failed += 1;
+}
+if (
+  cameraIdleWouldAdvance(
+    { currentKind: 'niyet', nextKind: 'iftitah', detected: 'kiyam', modelReady: true },
+    idle30.duration,
+  )
+) {
+  console.log('FAIL camera advanced same-pose niyet on timer');
+  failed += 1;
+}
+if (
+  cameraIdleWouldAdvance(
+    { currentKind: 'secde2', nextKind: 'tahiyyat', detected: 'oturus', modelReady: true },
+    idle30.duration,
+  )
+) {
+  console.log('FAIL camera left secde2 on sit without seeing secde');
+  failed += 1;
+}
+if (
+  cameraIdleWouldAdvance(
+    { currentKind: 'kavme', nextKind: 'secde1', detected: 'kiyam', modelReady: true },
+    idle30.duration,
+  )
+) {
+  console.log('FAIL camera left kavme on standing after 30s');
+  failed += 1;
+}
+
+const poseChange = tickCameraAdvance({
+  currentKind: 'kiyam',
+  nextKind: 'ruku',
+  detected: 'ruku',
+  seenCurrentMs: 600,
+  matchingNextMs: CAMERA_HOLD_MS,
+  modelReady: true,
+});
+if (!poseChange.advance || poseChange.hint !== 'camera') {
+  console.log('FAIL camera should advance kiyam → ruku after hold');
+  failed += 1;
+}
+
+const secde2Done = tickCameraAdvance({
+  currentKind: 'secde2',
+  nextKind: 'tahiyyat',
+  detected: 'oturus',
+  seenCurrentMs: 600,
+  matchingNextMs: CAMERA_HOLD_MS,
+  modelReady: true,
+});
+if (!secde2Done.advance || !secde2Done.secde2Confirmed) {
+  console.log('FAIL camera should leave secde2 after confirmed secde then sit');
+  failed += 1;
+}
+
+const noModel = tickCameraAdvance({
+  currentKind: 'kiyam',
+  nextKind: 'ruku',
+  detected: 'ruku',
+  seenCurrentMs: 600,
+  matchingNextMs: CAMERA_HOLD_MS,
+  modelReady: false,
+});
+if (noModel.advance || noModel.hint !== 'manual') {
+  console.log('FAIL without model camera must not auto-advance');
   failed += 1;
 }
 

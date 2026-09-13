@@ -21,8 +21,9 @@ export function PrivacyModal({ visible, theme, onAccept, onCancel }: Props) {
           <Text style={[styles.body, { color: theme.textMuted }]}>{CAMERA_PRIVACY}</Text>
           <Text style={[styles.body, { color: theme.textMuted }]}>
             HTTPS gerekir (bu sayfa zaten güvenli). Telefonu biraz uzakta tutun; baş-omuz-bel
-            görünsün. Niyet ve tekbir gibi aynı duruştaki adımlar birkaç saniyede otomatik
-            geçer; rükû/secde için duruşunuz beklenir.
+            görünsün. Kamera açıkken süreyle adım atılmaz: sonraki duruş görünür ve tutulursa
+            geçer, ya da Sonraki’ye basarsınız. Aynı duruştaki metinler (niyet → tekbir) için
+            Sonraki gerekir.
           </Text>
           <View style={styles.row}>
             <Pressable

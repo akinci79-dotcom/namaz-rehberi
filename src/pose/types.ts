@@ -23,6 +23,15 @@ export const POSE_LABEL_TR: Record<BodyPose, string> = {
   unknown: 'Belirsiz',
 };
 
+/** Durum çubuğu: “Bekleniyor: rükû” / “Algı: kıyam” */
+export const POSE_WAIT_TR: Record<BodyPose, string> = {
+  kiyam: 'kıyam',
+  ruku: 'rükû',
+  secde: 'secde',
+  oturus: 'oturuş',
+  unknown: 'yok',
+};
+
 export const POSE_CUE_TR: Record<Exclude<BodyPose, 'unknown'>, string> = {
   kiyam: 'Şimdi ayağa kalkın',
   ruku: 'Şimdi rükûya eğilin',
