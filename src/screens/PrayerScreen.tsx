@@ -231,8 +231,8 @@ export function PrayerScreen({
 
             <Text style={[styles.tapHint, { color: theme.textMuted }]}>
               {cameraOn
-                ? 'Rekât bitince cihaz bir kez sayı der. Aynı duruş zamanlayıcıyla geçer; rükû/secde duruşla.'
-                : 'Rekât bitince cihaz bir kez sayı der. İlerlemek için dokunun veya kamerayı açın.'}
+                ? 'İkinci secdeden kalkış veya oturuşta cihaz bir kez sayı der. Rükûdan doğrulma konuşmaz.'
+                : 'İkinci secdeden kalkış veya oturuşta cihaz bir kez sayı der. İlerlemek için dokunun veya kamerayı açın.'}
             </Text>
           </Pressable>
         </ScrollView>
