@@ -82,7 +82,7 @@ function writeServiceWorker(root) {
     .filter((path) => path !== './sw.js')
     .filter((path, index, all) => all.indexOf(path) === index);
 
-  const body = `const CACHE = 'namaz-offline-v4';
+  const body = `const CACHE = 'namaz-offline-v5';
 const ASSETS = ${JSON.stringify(assets, null, 2)};
 
 self.addEventListener('install', (event) => {

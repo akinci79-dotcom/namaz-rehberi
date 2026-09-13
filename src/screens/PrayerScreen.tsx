@@ -51,8 +51,9 @@ export function PrayerScreen({
 }: Props) {
   useKeepAwake();
 
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isWide = width >= 700;
+  const previewHeight = Math.round(Math.min(560, Math.max(240, height * (isWide ? 0.42 : 0.5))));
   const prayer = getPrayer(prayerId);
   const steps = useMemo(() => getPrayerSteps(prayerId), [prayerId]);
   const step = steps[stepIndex];
@@ -128,7 +129,7 @@ export function PrayerScreen({
     );
   }
 
-  const titleSize = isWide ? 56 : 42;
+  const titleSize = cameraOn ? (isWide ? 36 : 28) : isWide ? 56 : 42;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
@@ -165,13 +166,14 @@ export function PrayerScreen({
           </Pressable>
         </View>
 
-        <StepProgress index={stepIndex} total={steps.length} theme={theme} />
+        {!cameraOn ? <StepProgress index={stepIndex} total={steps.length} theme={theme} /> : null}
 
         <CameraAssistBar
           theme={theme}
           enabled={cameraOn}
           onToggle={requestCamera}
           assist={assist}
+          previewHeight={previewHeight}
         />
         {!cameraOn ? (
           <Text style={[styles.practiceLabel, { color: theme.textMuted }]}>
@@ -195,16 +197,16 @@ export function PrayerScreen({
 
         <ScrollView
           style={styles.stageScroll}
-          contentContainerStyle={styles.stageContent}
+          contentContainerStyle={[styles.stageContent, cameraOn && styles.stageContentCamera]}
           showsVerticalScrollIndicator={false}
         >
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Sonraki adıma geç"
             onPress={goNext}
-            style={styles.stageInner}
+            style={[styles.stageInner, cameraOn && styles.stageInnerCamera]}
           >
-            <Text style={[styles.rakah, { color: theme.accent }]}>
+            <Text style={[styles.rakah, { color: theme.accent, fontSize: cameraOn ? 22 : 28 }]}>
               Rekât {step.rakah} / {step.totalRakah}
             </Text>
 
@@ -215,38 +217,46 @@ export function PrayerScreen({
             ) : null}
 
             {assist.cue ? (
-              <Text style={[styles.cue, { color: theme.accent }]}>{assist.cue}</Text>
+              <Text style={[styles.cue, { color: theme.accent, fontSize: cameraOn ? 22 : 26 }]}>
+                {assist.cue}
+              </Text>
             ) : null}
 
             <Text
               style={[
                 styles.stepTitle,
-                { color: theme.text, fontSize: titleSize, lineHeight: titleSize + 8 },
+                { color: theme.text, fontSize: titleSize, lineHeight: titleSize + 6 },
               ]}
             >
               {step.title}
             </Text>
 
-            <Text style={[styles.instruction, { color: theme.text }]}>{step.instruction}</Text>
+            {!cameraOn ? (
+              <Text style={[styles.instruction, { color: theme.text }]}>{step.instruction}</Text>
+            ) : null}
 
-            {step.arabic ? (
+            {!cameraOn && step.arabic ? (
               <Text style={[styles.arabic, { color: theme.arabic }]}>{step.arabic}</Text>
             ) : null}
 
             <View
-              style={[styles.nextBox, { backgroundColor: theme.surface, borderColor: theme.border }]}
+              style={[
+                styles.nextBox,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+                cameraOn && styles.nextBoxCamera,
+              ]}
             >
               <Text style={[styles.nextLabel, { color: theme.textMuted }]}>Sıradaki</Text>
-              <Text style={[styles.nextTitle, { color: theme.text }]}>
+              <Text style={[styles.nextTitle, { color: theme.text, fontSize: cameraOn ? 18 : 22 }]}>
                 {nextTitle ?? 'Namazı tamamla'}
               </Text>
             </View>
 
-            <Text style={[styles.tapHint, { color: theme.textMuted }]}>
-              {cameraOn
-                ? 'Kamera açık: adım yalnızca duruşla veya Sonraki ile geçer. Süreyle ilerlemez.'
-                : 'Süre ile prova (kamerasız). Dokunarak da geçebilirsiniz. Rekât bitince bir kez sayı.'}
-            </Text>
+            {!cameraOn ? (
+              <Text style={[styles.tapHint, { color: theme.textMuted }]}>
+                Süre ile prova (kamerasız). Dokunarak da geçebilirsiniz. Rekât bitince bir kez sayı.
+              </Text>
+            ) : null}
           </Pressable>
         </ScrollView>
 
@@ -258,6 +268,7 @@ export function PrayerScreen({
             onPress={goPrev}
             style={({ pressed }) => [
               styles.navBtn,
+              cameraOn && styles.navBtnCamera,
               {
                 backgroundColor: theme.surfaceRaised,
                 borderColor: theme.border,
@@ -275,6 +286,7 @@ export function PrayerScreen({
             style={({ pressed }) => [
               styles.navBtn,
               styles.navPrimary,
+              cameraOn && styles.navBtnCamera,
               {
                 backgroundColor: theme.accent,
                 opacity: pressed ? 0.88 : 1,
@@ -300,7 +312,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 12,
-    gap: 14,
+    gap: 10,
     maxWidth: 840,
     width: '100%',
     alignSelf: 'center',
@@ -342,8 +354,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
   },
+  stageContentCamera: {
+    justifyContent: 'flex-start',
+    paddingVertical: 4,
+  },
   stageInner: {
     gap: 12,
+  },
+  stageInnerCamera: {
+    gap: 6,
+  },
+  nextBoxCamera: {
+    paddingVertical: 8,
+    marginTop: 0,
   },
   rakah: {
     fontSize: 28,
@@ -417,6 +440,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'transparent',
+  },
+  navBtnCamera: {
+    minHeight: 58,
   },
   navPrimary: {
     flex: 1.25,

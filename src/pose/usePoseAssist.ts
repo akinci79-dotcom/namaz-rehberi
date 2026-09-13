@@ -214,8 +214,10 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
         video.style.width = '100%';
         video.style.height = '100%';
         video.style.objectFit = 'cover';
+        video.style.objectPosition = 'center top';
         video.style.transform = 'scaleX(-1)';
-        video.style.borderRadius = '10px';
+        video.style.borderRadius = '0';
+        video.style.background = '#0C100E';
         await video.play();
         mountVideo(video);
 
