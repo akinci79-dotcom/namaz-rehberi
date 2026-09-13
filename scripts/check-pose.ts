@@ -2,7 +2,8 @@ import { classifyPose } from '../src/pose/classifyPose';
 import { samePoseDwellMs } from '../src/pose/stepPose';
 import type { PoseLandmark } from '../src/pose/types';
 import type { PrayerStep } from '../src/types/prayer';
-import { cueForStepKind } from '../src/voice/speech';
+import { getPrayerSteps, PRAYERS } from '../src/data';
+import { cueAfterLeavingStep, rakahNumberWord, transitionCueForStepKind } from '../src/voice/speech';
 
 function body(points: Record<number, [number, number]>): PoseLandmark[] {
   const out: PoseLandmark[] = Array.from({ length: 33 }, () => ({
@@ -109,9 +110,37 @@ if (samePoseDwellMs(lastSit) < 10000) {
   console.log('FAIL last tahiyyat dwell too short');
   failed += 1;
 }
-if (cueForStepKind('secde1') !== 'bir' || cueForStepKind('secde2') !== 'iki') {
-  console.log('FAIL secde voice cues');
+if (rakahNumberWord(1) !== 'bir' || rakahNumberWord(2) !== 'iki' || rakahNumberWord(3) !== 'üç' || rakahNumberWord(4) !== 'dört') {
+  console.log('FAIL rakah number words');
   failed += 1;
+}
+if (transitionCueForStepKind('secde1') || transitionCueForStepKind('ruku') || transitionCueForStepKind('kalkis')) {
+  console.log('FAIL transition cues must be off by default');
+  failed += 1;
+}
+
+for (const prayer of PRAYERS) {
+  const steps = getPrayerSteps(prayer.id);
+  const spoken: string[] = [];
+  for (let i = 1; i < steps.length; i += 1) {
+    const cue = cueAfterLeavingStep(steps[i - 1], true);
+    if (cue) {
+      spoken.push(cue);
+    }
+    if (cueAfterLeavingStep(steps[i], false)) {
+      console.log(`FAIL ${prayer.id} spoke while holding pose`);
+      failed += 1;
+    }
+    if (steps[i].kind === 'secde1' && cueAfterLeavingStep(steps[i], true)) {
+      console.log(`FAIL ${prayer.id} spoke on secde entry`);
+      failed += 1;
+    }
+  }
+  const expected = Array.from({ length: prayer.rakahCount }, (_, n) => rakahNumberWord(n + 1));
+  if (spoken.join(',') !== expected.join(',')) {
+    console.log(`FAIL ${prayer.id} voice ${spoken.join(',')} !== ${expected.join(',')}`);
+    failed += 1;
+  }
 }
 
 if (failed) {

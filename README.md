@@ -31,7 +31,7 @@ Namaz ekranında **Kamera yardımcısı**nı açın. Ön kamera duruşu tanır (
 
 - **Aynı duruş** (niyet → iftitah → kıyam): birkaç saniyelik zamanlayıcıyla dokunmadan ilerler.
 - **Duruş değişimi** (rükû, secde, oturuş, ayağa kalk): kamera o duruşu görünce geçer; görünmezse yedek süre sonra yine ilerler.
-- **Ses:** her rekâtta 1. secdeye girince **“bir”**, 2. secdeye girince **“iki”** (Web Speech, tr-TR). İsteğe bağlı “rükû / kalk”. **Ses kapalı** düğmesi vardır. Konuşan uygulamadır, kılan kişi değil.
+- **Ses:** yalnızca **biten rekâtın sayısı** bir kez (1 **bir**, 2 **iki**, 3 **üç**, 4 **dört**) — 2. secdeden sonra ayağa kalkışta veya son oturuşa geçişte. Secde / rükû / kalk sözleri yok. **Ses kapalı** düğmesi vardır. Konuşan uygulamadır, kılan kişi değil.
 - İlk yüklemeden sonra kabuk + duruş modeli servis çalışanıyla önbelleğe alınır; namaz ortasında Wi‑Fi kopsa ekran boşalmamalıdır. Bitiş ekranı **Namaz bitti** yereldedir.
 - % sayacı yoktur; durum metni ne beklendiğini söyler (ör. “Şimdi rükûya eğilin”).
 - Görüntü **yalnızca cihazda** işlenir; kareler yüklenmez ve kaydedilmez.
@@ -87,7 +87,7 @@ src/data/phrases.ts     # Kısa Arapça ibareler
 src/data/buildSteps.ts  # Rekât ve oturuş sırasını üretir
 src/data/sanity.ts      # Rekât / oturuş bütünlük kontrolü
 src/pose/               # Kamera duruş algılama (cihaz içi)
-src/voice/              # Secde “bir/iki” konuşması (cihaz hoparlörü)
+src/voice/              # Biten rekât sayısı (bir / iki / üç / dört)
 src/screens/            # Ana sayfa, aktif namaz, özet
 src/components/         # Kart, uyarı, ilerleme, kamera çubuğu
 src/theme/colors.ts     # Koyu / açık tema

@@ -47,8 +47,9 @@ export function HomeScreen({ theme, onSelect }: Props) {
         <DisclaimerCard theme={theme} />
 
         <Text style={[styles.footnote, { color: theme.textMuted }]}>
-          Sünnet ve nafile yok. Secdede cihaz “bir / iki” der. Kamera aynı duruşu
-          zamanlayıcıyla, rükû/secdeyi duruşla ilerletir. Görüntü ve ses cihazda kalır.
+          Sünnet ve nafile yok. Rekât bitince cihaz bir kez “bir / iki / üç / dört”
+          der. Kamera aynı duruşu zamanlayıcıyla, rükû/secdeyi duruşla ilerletir.
+          Görüntü ve ses cihazda kalır.
         </Text>
       </ScrollView>
     </SafeAreaView>

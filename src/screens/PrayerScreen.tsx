@@ -227,8 +227,8 @@ export function PrayerScreen({
 
             <Text style={[styles.tapHint, { color: theme.textMuted }]}>
               {cameraOn
-                ? 'Secdede cihaz “bir / iki” der. Aynı duruş zamanlayıcıyla geçer; rükû/secde duruşla.'
-                : 'Secdede cihaz “bir / iki” der. İlerlemek için dokunun veya kamerayı açın.'}
+                ? 'Rekât bitince cihaz bir kez sayı der. Aynı duruş zamanlayıcıyla geçer; rükû/secde duruşla.'
+                : 'Rekât bitince cihaz bir kez sayı der. İlerlemek için dokunun veya kamerayı açın.'}
             </Text>
           </Pressable>
         </ScrollView>

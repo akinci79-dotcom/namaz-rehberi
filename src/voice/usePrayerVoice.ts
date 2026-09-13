@@ -1,28 +1,44 @@
 import { useEffect, useRef } from 'react';
 
 import type { PrayerStep } from '../types/prayer';
-import { cueForStepKind, speakCue } from './speech';
+import { cueAfterLeavingStep, speakCue, transitionCueForStepKind } from './speech';
 
-/** Adıma ilk girildiğinde bir kez konuşur; duruş tutulurken tekrar etmez. */
+/**
+ * Rekât bitince (2. secdeden kalkış / son oturuşa geçiş) bir kez sayı söyler.
+ * Secde girişinde veya duruş tutulurken konuşmaz. Geri gidince tekrar etmez.
+ */
 export function usePrayerVoice(steps: readonly PrayerStep[], stepIndex: number, enabled: boolean): void {
-  const lastSpokenId = useRef<string | null>(null);
+  const prevIndex = useRef(stepIndex);
+  const lastAnnouncedRakah = useRef<number | null>(null);
 
   useEffect(() => {
+    prevIndex.current = 0;
+    lastAnnouncedRakah.current = null;
+  }, [steps]);
+
+  useEffect(() => {
+    const previous = prevIndex.current;
+    prevIndex.current = stepIndex;
+
     if (!enabled) {
       return;
     }
-    const step = steps[stepIndex];
-    if (!step || lastSpokenId.current === step.id) {
+    if (stepIndex <= previous) {
       return;
     }
-    lastSpokenId.current = step.id;
-    const cue = cueForStepKind(step.kind);
-    if (cue) {
-      speakCue(cue);
+
+    const left = steps[previous];
+    const word = cueAfterLeavingStep(left, true);
+    if (word && left && lastAnnouncedRakah.current !== left.rakah) {
+      lastAnnouncedRakah.current = left.rakah;
+      speakCue(word);
+      return;
+    }
+
+    const entered = steps[stepIndex];
+    const extra = entered ? transitionCueForStepKind(entered.kind) : null;
+    if (extra) {
+      speakCue(extra);
     }
   }, [enabled, stepIndex, steps]);
-
-  useEffect(() => {
-    lastSpokenId.current = null;
-  }, [steps]);
 }
