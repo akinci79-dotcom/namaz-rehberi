@@ -43,8 +43,8 @@ export function HomeScreen({ theme, onSelect }: Props) {
         <DisclaimerCard theme={theme} />
 
         <Text style={[styles.footnote, { color: theme.textMuted }]}>
-          Sünnet ve nafile yok. İlerleme Sonraki / Önceki ile veya isteğe bağlı kamera
-          yardımcısıyla (görüntü cihazda kalır) yapılır.
+          Sünnet ve nafile yok. Kamera yardımcısı aynı duruştaki adımları zamanlayıcıyla,
+          rükû/secdeyi duruşla ilerletir; görüntü cihazda kalır. Sonraki / Önceki yedektir.
         </Text>
       </ScrollView>
     </SafeAreaView>

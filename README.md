@@ -27,14 +27,16 @@ Ardından `dist/` içeriğini Pages sitesine kopyalayın.
 
 ### Kamera yardımcısı (iPad / iPhone Safari)
 
-Namaz ekranında **Kamera yardımcısı**nı açın. Ön kamera duruşu tanır (kıyam, rükû, secde, oturuş) ve sıradaki **farklı** duruş gelince adımı ilerletir.
+Namaz ekranında **Kamera yardımcısı**nı açın. Ön kamera duruşu tanır (kıyam, rükû, secde, oturuş).
 
+- **Aynı duruş** (niyet → iftitah → kıyam): birkaç saniyelik zamanlayıcıyla dokunmadan ilerler.
+- **Duruş değişimi** (rükû, secde, oturuş, ayağa kalk): kamera o duruşu görünce geçer; görünmezse yedek süre sonra yine ilerler.
+- % sayacı yoktur; durum metni ne beklendiğini söyler (ör. “Şimdi rükûya eğilin”).
 - Görüntü **yalnızca cihazda** işlenir; kareler yüklenmez ve kaydedilmez.
 - Kamera için **HTTPS** gerekir; bu Pages adresi zaten HTTPS.
 - Safari’de ilk seferde kameraya izin verin. Reddedilirse Ayarlar → Safari → Kamera.
-- Tableti önünüze, mümkünse gövdeniz görünecek şekilde koyun.
-- Niyet → tekbir gibi **aynı duruştaki** adımlar için Sonraki’ye dokunun.
-- Kamera olmasa da Sonraki / Önceki her zaman çalışır.
+- Telefonu/tableti **uzaklaştırın** — yalnızca yüz kadrajı duruşu bozar; baş-omuz-bel (mümkünse ayak) görünsün.
+- Sonraki / Önceki her zaman yedektir.
 
 ## iPhone’da denemek (Expo Go, geliştirme)
 

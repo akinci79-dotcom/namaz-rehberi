@@ -1,4 +1,4 @@
-import type { BodyPose, PoseGuess, PoseLandmark } from './types';
+import type { BodyPose, Framing, PoseGuess, PoseLandmark } from './types';
 
 const L_SHOULDER = 11;
 const R_SHOULDER = 12;
@@ -10,7 +10,7 @@ const L_ANKLE = 27;
 const R_ANKLE = 28;
 const NOSE = 0;
 
-const MIN_VIS = 0.32;
+const MIN_VIS = 0.22;
 const HYSTERESIS = 0.07;
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -38,10 +38,13 @@ export function torsoAngleDeg(hip: PoseLandmark, shoulder: PoseLandmark): number
   return (Math.acos(cos) * 180) / Math.PI;
 }
 
+function empty(framing: Framing): PoseGuess {
+  return { pose: 'unknown', confidence: 0, framing };
+}
+
 /**
  * Ön kamera: omuz genişliği ölçek.
- * Kıyam = uzun gövde + uzun bacak; rükû = ezilmiş gövde + uzun bacak;
- * oturuş = dik gövde + kısa bacak; secde = ezilmiş gövde + kısa bacak / kompakt.
+ * iPhone selfie sıkça yalnızca yüz/omuz gösterir — kalça yoksa dik gövde kıyam sayılır.
  */
 export function classifyPose(landmarks: readonly PoseLandmark[], previous?: BodyPose): PoseGuess {
   const nose = landmarks[NOSE];
@@ -50,29 +53,55 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
   const hipL = landmarks[L_HIP];
   const hipR = landmarks[R_HIP];
 
-  if (!visible(nose) || !visible(shoulderL) || !visible(shoulderR) || !visible(hipL) || !visible(hipR)) {
-    return { pose: 'unknown', confidence: 0 };
+  if (!visible(nose, 0.18)) {
+    return empty('none');
+  }
+
+  const hasShoulders = visible(shoulderL, 0.18) && visible(shoulderR, 0.18);
+  if (!hasShoulders) {
+    return empty(nose.y < 0.55 ? 'close' : 'none');
   }
 
   const shoulder = mid(shoulderL, shoulderR);
+  const shoulderWidth = Math.abs(shoulderR.x - shoulderL.x);
+  const tooClose = shoulderWidth > 0.48 || (shoulder.y < 0.42 && !visible(hipL, 0.18));
+
+  const hasHips = visible(hipL, 0.16) && visible(hipR, 0.16);
+  if (!hasHips) {
+    const uprightFace = nose.y < shoulder.y;
+    if (tooClose) {
+      return {
+        pose: uprightFace ? 'kiyam' : 'unknown',
+        confidence: uprightFace ? 0.4 : 0,
+        framing: 'close',
+      };
+    }
+    return {
+      pose: uprightFace ? 'kiyam' : 'unknown',
+      confidence: uprightFace ? 0.45 : 0,
+      framing: 'partial',
+    };
+  }
+
   const hip = mid(hipL, hipR);
   const kneeL = landmarks[L_KNEE];
   const kneeR = landmarks[R_KNEE];
   const ankleL = landmarks[L_ANKLE];
   const ankleR = landmarks[R_ANKLE];
   const knee =
-    visible(kneeL, 0.22) && visible(kneeR, 0.22) ? mid(kneeL, kneeR) : undefined;
+    visible(kneeL, 0.14) && visible(kneeR, 0.14) ? mid(kneeL, kneeR) : undefined;
   const ankle =
-    visible(ankleL, 0.2) && visible(ankleR, 0.2) ? mid(ankleL, ankleR) : undefined;
+    visible(ankleL, 0.12) && visible(ankleR, 0.12) ? mid(ankleL, ankleR) : undefined;
 
-  const scale = Math.max(Math.abs(shoulderR.x - shoulderL.x), 0.12);
+  const scale = Math.max(shoulderWidth, 0.1);
   const torsoNorm = (hip.y - shoulder.y) / scale;
   const angle = torsoAngleDeg(hip, shoulder);
   const bentByAngle = clamp((angle - 32) / 45, 0, 1);
+  const framing: Framing = tooClose ? 'close' : ankle || knee ? 'ok' : 'partial';
 
   const lowerRef = ankle ?? knee;
   if (!lowerRef) {
-    const highTorso = clamp((torsoNorm - 0.4) / 0.55, 0, 1);
+    const highTorso = clamp((torsoNorm - 0.35) / 0.55, 0, 1);
     const lowTorso = clamp((0.5 - torsoNorm) / 0.4, 0, 1);
     return pick(
       {
@@ -82,15 +111,16 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
         oturus: 0,
       },
       previous,
-      0.48,
+      0.38,
+      framing,
     );
   }
 
   const legNorm = (lowerRef.y - hip.y) / scale;
   const spanNorm = (lowerRef.y - nose.y) / scale;
-  const highTorso = clamp((torsoNorm - 0.42) / 0.5, 0, 1);
+  const highTorso = clamp((torsoNorm - 0.38) / 0.5, 0, 1);
   const lowTorso = clamp((0.52 - torsoNorm) / 0.4, 0, 1);
-  const highLeg = clamp((legNorm - 1.05) / 0.55, 0, 1);
+  const highLeg = clamp((legNorm - 0.95) / 0.55, 0, 1);
   const lowLeg = clamp((1.05 - legNorm) / 0.55, 0, 1);
   const compact = clamp((1.45 - spanNorm) / 0.7, 0, 1);
 
@@ -102,7 +132,8 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
       secde: Math.max(lowTorso * lowLeg, compact * Math.max(lowTorso, 0.35)),
     },
     previous,
-    0.34,
+    0.3,
+    framing,
   );
 }
 
@@ -110,6 +141,7 @@ function pick(
   scores: Record<Exclude<BodyPose, 'unknown'>, number>,
   previous: BodyPose | undefined,
   min: number,
+  framing: Framing,
 ): PoseGuess {
   const entries = Object.entries(scores) as Array<[Exclude<BodyPose, 'unknown'>, number]>;
   entries.sort((a, b) => b[1] - a[1]);
@@ -119,16 +151,17 @@ function pick(
   if (previous && previous !== 'unknown' && previous !== bestPose) {
     const prevScore = scores[previous];
     if (prevScore + HYSTERESIS >= bestScore) {
-      return { pose: previous, confidence: prevScore };
+      return { pose: previous, confidence: prevScore, framing };
     }
   }
 
-  if (bestScore < min || bestScore - second < 0.035) {
+  if (bestScore < min || bestScore - second < 0.03) {
     return {
-      pose: previous && previous !== 'unknown' && bestScore > min * 0.7 ? previous : 'unknown',
+      pose: previous && previous !== 'unknown' && bestScore > min * 0.65 ? previous : 'unknown',
       confidence: bestScore,
+      framing,
     };
   }
 
-  return { pose: bestPose, confidence: bestScore };
+  return { pose: bestPose, confidence: bestScore, framing };
 }

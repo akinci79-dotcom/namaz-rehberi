@@ -1,17 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { PrayerStep } from '../types/prayer';
 import { classifyPose } from './classifyPose';
 import { createPoseLandmarker, type PoseLandmarkerHandle } from './mediapipe';
 import { cameraSupported, isWebRuntime } from './publicUrl';
-import { poseForStepKind } from './stepPose';
-import type { BodyPose } from './types';
+import { poseForStepKind, poseWaitFallbackMs, samePoseDwellMs } from './stepPose';
+import type { BodyPose, Framing } from './types';
+import { POSE_CUE_TR, POSE_LABEL_TR } from './types';
 
-export type AssistStatus = 'off' | 'loading' | 'running' | 'denied' | 'unsupported' | 'error';
+export type AssistStatus =
+  | 'off'
+  | 'loading'
+  | 'running'
+  | 'degraded'
+  | 'denied'
+  | 'unsupported'
+  | 'error';
 
-const HOLD_MS = 700;
-const COOLDOWN_MS = 850;
-const FRAME_MS = 130;
+const HOLD_MS = 750;
+const COOLDOWN_MS = 900;
+const FRAME_MS = 140;
 
 interface Options {
   enabled: boolean;
@@ -23,17 +31,20 @@ interface Options {
 export interface PoseAssistState {
   status: AssistStatus;
   detected: BodyPose;
-  confidence: number;
+  framing: Framing;
   waitingFor: BodyPose | null;
-  message: string | null;
+  cue: string | null;
+  countdownSec: number | null;
+  statusText: string;
   attachPreview: (host: HTMLElement | null) => void;
 }
 
 export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options): PoseAssistState {
   const [status, setStatus] = useState<AssistStatus>('off');
   const [detected, setDetected] = useState<BodyPose>('unknown');
-  const [confidence, setConfidence] = useState(0);
-  const [message, setMessage] = useState<string | null>(null);
+  const [framing, setFraming] = useState<Framing>('none');
+  const [countdownSec, setCountdownSec] = useState<number | null>(null);
+  const [loadMessage, setLoadMessage] = useState<string | null>(null);
 
   const onAdvanceRef = useRef(onAdvance);
   onAdvanceRef.current = onAdvance;
@@ -41,11 +52,16 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
   stepIndexRef.current = stepIndex;
   const stepsRef = useRef(steps);
   stepsRef.current = steps;
-  const detectedRef = useRef<BodyPose>('unknown');
   const previewHostRef = useRef<HTMLElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const attachPreview = (host: HTMLElement | null) => {
     previewHostRef.current = host;
+    const video = videoRef.current;
+    if (host && video && video.parentElement !== host) {
+      host.innerHTML = '';
+      host.appendChild(video);
+    }
   };
 
   const current = steps[stepIndex];
@@ -58,46 +74,114 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     if (!enabled) {
       setStatus('off');
       setDetected('unknown');
-      setConfidence(0);
-      setMessage(null);
+      setFraming('none');
+      setCountdownSec(null);
+      setLoadMessage(null);
       return;
     }
 
     if (!isWebRuntime() || !cameraSupported()) {
       setStatus('unsupported');
-      setMessage('Bu tarayıcı kamerayı desteklemiyor. Sonraki / Önceki kullanın.');
+      setLoadMessage('Bu tarayıcı kamerayı desteklemiyor. Sonraki / Önceki kullanın.');
       return;
     }
 
     let cancelled = false;
     let stream: MediaStream | null = null;
-    let video: HTMLVideoElement | null = null;
     let landmarker: PoseLandmarkerHandle | null = null;
     let raf = 0;
     let lastFrame = 0;
     let holdStarted = 0;
     let lastAdvance = 0;
+    let timerAnchor = performance.now();
+    let timerStep = -1;
     let prevPose: BodyPose | undefined;
+    let stablePose: BodyPose = 'unknown';
+    let publishedPose: BodyPose = 'unknown';
+    let stableCount = 0;
 
-    const cleanupVideo = () => {
-      if (video) {
-        video.srcObject = null;
-        video.remove();
-        video = null;
+    const mountVideo = (video: HTMLVideoElement) => {
+      videoRef.current = video;
+      const host = previewHostRef.current;
+      if (host && video.parentElement !== host) {
+        host.innerHTML = '';
+        host.appendChild(video);
+      }
+    };
+
+    const advance = (now: number) => {
+      lastAdvance = now;
+      holdStarted = 0;
+      timerAnchor = now;
+      timerStep = stepIndexRef.current + 1;
+      onAdvanceRef.current();
+    };
+
+    const runTimers = (now: number, pose: BodyPose) => {
+      const idx = stepIndexRef.current;
+      const list = stepsRef.current;
+      const here = list[idx];
+      if (!here) {
+        return;
+      }
+      if (timerStep !== idx) {
+        timerStep = idx;
+        timerAnchor = now;
+        holdStarted = 0;
+      }
+      if (now - lastAdvance < COOLDOWN_MS) {
+        return;
+      }
+
+      const nxt = list[idx + 1];
+      const from = poseForStepKind(here.kind);
+      const to = nxt ? poseForStepKind(nxt.kind) : null;
+      const samePose = !to || from === to;
+
+      if (samePose) {
+        const dwell = samePoseDwellMs(here);
+        const left = Math.max(0, dwell - (now - timerAnchor));
+        setCountdownSec(Math.ceil(left / 1000));
+        if (left <= 0) {
+          setCountdownSec(null);
+          advance(now);
+        }
+        return;
+      }
+
+      if (pose === to && pose !== 'unknown') {
+        if (!holdStarted) {
+          holdStarted = now;
+        }
+        const leftHold = Math.max(0, HOLD_MS - (now - holdStarted));
+        setCountdownSec(leftHold > 0 ? 1 : null);
+        if (now - holdStarted >= HOLD_MS) {
+          setCountdownSec(null);
+          advance(now);
+        }
+        return;
+      }
+
+      holdStarted = 0;
+      const fallback = poseWaitFallbackMs(here);
+      const left = Math.max(0, fallback - (now - timerAnchor));
+      setCountdownSec(Math.ceil(left / 1000));
+      if (left <= 0) {
+        setCountdownSec(null);
+        advance(now);
       }
     };
 
     const run = async () => {
       setStatus('loading');
-      setMessage('Kamera ve model yükleniyor… Görüntü bu cihazdan çıkmaz.');
+      setLoadMessage('Kamera ve model yükleniyor… Görüntü bu cihazdan çıkmaz.');
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: {
             facingMode: { ideal: 'user' },
-            width: { ideal: 480 },
-            height: { ideal: 360 },
-            frameRate: { ideal: 18, max: 24 },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
           },
         });
         if (cancelled) {
@@ -105,7 +189,17 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
           return;
         }
 
-        video = document.createElement('video');
+        try {
+          const track = stream.getVideoTracks()[0];
+          const caps = track?.getCapabilities?.() as { zoom?: { min: number } } | undefined;
+          if (track && caps?.zoom) {
+            await track.applyConstraints({ advanced: [{ zoom: caps.zoom.min }] as never });
+          }
+        } catch {
+          // zoom yoksa devam
+        }
+
+        const video = document.createElement('video');
         video.setAttribute('playsinline', 'true');
         video.setAttribute('autoplay', 'true');
         video.muted = true;
@@ -118,79 +212,96 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
         video.style.transform = 'scaleX(-1)';
         video.style.borderRadius = '10px';
         await video.play();
+        mountVideo(video);
 
-        const host = previewHostRef.current;
-        if (host) {
-          host.innerHTML = '';
-          host.appendChild(video);
+        try {
+          landmarker = await createPoseLandmarker();
+        } catch {
+          landmarker = null;
+          if (!cancelled) {
+            setStatus('degraded');
+            setLoadMessage('Duruş modeli yüklenemedi. Adımlar zamanlayıcıyla ilerleyecek.');
+          }
         }
 
-        landmarker = await createPoseLandmarker();
         if (cancelled) {
-          landmarker.close();
+          landmarker?.close();
           return;
         }
 
-        setStatus('running');
-        setMessage(null);
+        if (landmarker) {
+          setStatus('running');
+          setLoadMessage(null);
+        }
+
+        timerAnchor = performance.now();
+        timerStep = stepIndexRef.current;
 
         const tick = () => {
-          if (cancelled || !video || !landmarker) {
+          if (cancelled) {
             return;
           }
           const now = performance.now();
-          if (now - lastFrame >= FRAME_MS && video.readyState >= 2) {
+          let pose: BodyPose = publishedPose;
+
+          if (landmarker && video.readyState >= 2 && now - lastFrame >= FRAME_MS) {
             lastFrame = now;
             try {
               const result = landmarker.detectForVideo(video, now);
               const points = result.landmarks?.[0];
-              if (points) {
+              if (!points) {
+                setFraming((prev) => (prev === 'ok' ? 'partial' : 'none'));
+                setDetected('unknown');
+                pose = 'unknown';
+                stableCount = 0;
+                stablePose = 'unknown';
+              } else {
                 const guess = classifyPose(points, prevPose);
                 prevPose = guess.pose;
-                detectedRef.current = guess.pose;
-                setDetected(guess.pose);
-                setConfidence(guess.confidence);
-
-                const idx = stepIndexRef.current;
-                const list = stepsRef.current;
-                const here = list[idx];
-                const nxt = list[idx + 1];
-                if (here && nxt) {
-                  const from = poseForStepKind(here.kind);
-                  const to = poseForStepKind(nxt.kind);
-                  const poseChanged = from !== to;
-                  const matchesNext = guess.pose === to && guess.pose !== 'unknown';
-                  if (poseChanged && matchesNext && now - lastAdvance > COOLDOWN_MS) {
-                    if (!holdStarted) {
-                      holdStarted = now;
-                    } else if (now - holdStarted >= HOLD_MS) {
-                      lastAdvance = now;
-                      holdStarted = 0;
-                      onAdvanceRef.current();
-                    }
-                  } else {
-                    holdStarted = 0;
-                  }
+                setFraming(guess.framing);
+                if (guess.pose === stablePose) {
+                  stableCount += 1;
+                } else {
+                  stableCount = 1;
+                  stablePose = guess.pose;
+                }
+                if (stableCount >= 2 || guess.pose === 'unknown') {
+                  publishedPose = guess.pose;
+                  setDetected(guess.pose);
+                  pose = guess.pose;
+                } else {
+                  pose = publishedPose;
                 }
               }
             } catch {
-              // tek kare hatası döngüyü kesmesin
+              // tek kare
             }
+            mountVideo(video);
+          }
+
+          if (statusAllowsTimers()) {
+            runTimers(now, pose);
           }
           raf = requestAnimationFrame(tick);
         };
+
+        const statusAllowsTimers = () => true;
         raf = requestAnimationFrame(tick);
       } catch (error) {
         if (cancelled) {
           return;
         }
         const name = error instanceof Error ? error.name : '';
+        const text = error instanceof Error ? error.message : '';
         if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
           setStatus('denied');
-          setMessage('Kamera izni verilmedi. Ayarlar → Safari → Kamera.');
+          setLoadMessage('Kamera izni verilmedi. Ayarlar → Safari → Kamera.');
+        } else if (text.includes('model') || text.includes('wasm') || text.includes('Vision')) {
+          setStatus('error');
+          setLoadMessage('Duruş modeli yüklenemedi. Sonraki / Önceki kullanın.');
         } else {
           setStatus('error');
-          setMessage('Kamera açılamadı. Sonraki / Önceki ile devam edebilirsiniz.');
+          setLoadMessage('Kamera açılamadı. Sonraki / Önceki ile devam edebilirsiniz.');
         }
       }
     };
@@ -202,16 +313,110 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       cancelAnimationFrame(raf);
       stream?.getTracks().forEach((track) => track.stop());
       landmarker?.close();
-      cleanupVideo();
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+        videoRef.current.remove();
+        videoRef.current = null;
+      }
     };
   }, [enabled]);
+
+  const statusText = useMemo(
+    () =>
+      buildStatusText({
+        enabled,
+        status,
+        loadMessage,
+        detected,
+        framing,
+        waitingFor,
+        current,
+        next,
+        countdownSec,
+      }),
+    [enabled, status, loadMessage, detected, framing, waitingFor, current, next, countdownSec],
+  );
+
+  const cue =
+    waitingFor &&
+    waitingFor !== 'unknown' &&
+    enabled &&
+    (status === 'running' || status === 'degraded')
+      ? POSE_CUE_TR[waitingFor]
+      : null;
 
   return {
     status,
     detected,
-    confidence,
+    framing,
     waitingFor,
-    message,
+    cue,
+    countdownSec,
+    statusText,
     attachPreview,
   };
+}
+
+function buildStatusText(input: {
+  enabled: boolean;
+  status: AssistStatus;
+  loadMessage: string | null;
+  detected: BodyPose;
+  framing: Framing;
+  waitingFor: BodyPose | null;
+  current: PrayerStep | undefined;
+  next: PrayerStep | undefined;
+  countdownSec: number | null;
+}): string {
+  const { enabled, status, loadMessage, detected, framing, waitingFor, current, next, countdownSec } =
+    input;
+  if (!enabled) {
+    return 'Kapalı — duruşla otomatik ilerleme yok';
+  }
+  if (status === 'loading') {
+    return loadMessage ?? 'Yükleniyor…';
+  }
+  if (status === 'denied' || status === 'unsupported' || status === 'error') {
+    return loadMessage ?? 'Kamera kullanılamıyor.';
+  }
+  if (status === 'degraded' && loadMessage) {
+    const extra =
+      countdownSec != null && next
+        ? ` ${countdownSec} sn sonra: ${next.title}.`
+        : '';
+    return loadMessage + extra;
+  }
+
+  if (framing === 'none' && detected === 'unknown') {
+    const extra = countdownSec != null ? ` ${countdownSec} sn sonra otomatik ilerler.` : '';
+    return `Vücut görünmüyor — telefonu uzaklaştırın, baş-omuz-bel kadraja girsin.${extra}`;
+  }
+  if (framing === 'close') {
+    const extra = countdownSec != null ? ` ${countdownSec} sn sonra otomatik.` : '';
+    return `Yüz çok yakın — telefonu biraz uzaklaştırın, tüm gövde kadraja girsin.${extra}`;
+  }
+
+  if (waitingFor && waitingFor !== 'unknown') {
+    const cue = POSE_CUE_TR[waitingFor];
+    if (detected === waitingFor) {
+      return `${POSE_LABEL_TR[detected]} algılandı — geçiliyor`;
+    }
+    if (detected !== 'unknown' && current && detected === poseForStepKind(current.kind)) {
+      return `${POSE_LABEL_TR[detected]} duruyor. ${cue}${
+        countdownSec != null ? ` (yedek ${countdownSec} sn)` : ''
+      }`;
+    }
+    return `${cue}${countdownSec != null ? ` · yedek ${countdownSec} sn` : ''}`;
+  }
+
+  if (next && countdownSec != null) {
+    const seen =
+      detected !== 'unknown' ? `${POSE_LABEL_TR[detected]} algılandı. ` : '';
+    return `${seen}${countdownSec} sn sonra: ${next.title}`;
+  }
+
+  if (detected !== 'unknown') {
+    return `${POSE_LABEL_TR[detected]} algılandı`;
+  }
+  return 'Hazır';
 }

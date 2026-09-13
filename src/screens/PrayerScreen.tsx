@@ -176,6 +176,10 @@ export function PrayerScreen({
               </Text>
             ) : null}
 
+            {assist.cue ? (
+              <Text style={[styles.cue, { color: theme.accent }]}>{assist.cue}</Text>
+            ) : null}
+
             <Text
               style={[
                 styles.stepTitle,
@@ -202,7 +206,7 @@ export function PrayerScreen({
 
             <Text style={[styles.tapHint, { color: theme.textMuted }]}>
               {cameraOn
-                ? 'Duruş değişince otomatik ilerler. Aynı duruşta veya takılınca Sonraki’ye dokun.'
+                ? 'Aynı duruştaki adımlar birkaç saniyede kendiliğinden geçer. Rükû/secde için duruşunuz yeter; gerekirse Sonraki yedektir.'
                 : 'İlerlemek için yazıya dokun veya kamera yardımcısını aç'}
             </Text>
           </Pressable>
@@ -312,6 +316,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
+  },
+  cue: {
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    lineHeight: 32,
   },
   stepTitle: {
     fontWeight: '800',

@@ -1,7 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { PoseAssistState } from '../pose/usePoseAssist';
-import { POSE_LABEL_TR } from '../pose/types';
 import type { Theme } from '../theme/colors';
 
 interface Props {
@@ -16,7 +15,7 @@ export function CameraAssistBar({ theme, enabled, onToggle, assist }: Props) {
     <View style={[styles.bar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <PreviewMount
         theme={theme}
-        active={enabled && (assist.status === 'running' || assist.status === 'loading')}
+        active={enabled && (assist.status === 'running' || assist.status === 'loading' || assist.status === 'degraded')}
         attach={assist.attachPreview}
       />
       <View style={styles.copy}>
@@ -36,7 +35,7 @@ export function CameraAssistBar({ theme, enabled, onToggle, assist }: Props) {
             Kamera yardımcısı
           </Text>
         </Pressable>
-        <Text style={[styles.status, { color: theme.textMuted }]}>{statusLine(enabled, assist)}</Text>
+        <Text style={[styles.status, { color: theme.textMuted }]}>{assist.statusText}</Text>
       </View>
     </View>
   );
@@ -72,26 +71,6 @@ function resolveHtmlElement(node: View | null): HTMLElement | null {
   }
   const maybe = node as unknown as HTMLElement;
   return typeof maybe.appendChild === 'function' ? maybe : null;
-}
-
-function statusLine(enabled: boolean, assist: PoseAssistState): string {
-  if (!enabled) {
-    return 'Kapalı — duruşla otomatik ilerleme yok';
-  }
-  if (assist.message) {
-    return assist.message;
-  }
-  if (assist.status === 'running') {
-    const conf = Math.round(assist.confidence * 100);
-    const wait = assist.waitingFor
-      ? `Sıradaki duruş: ${POSE_LABEL_TR[assist.waitingFor]}`
-      : 'Aynı duruş — Sonraki’ye dokun';
-    return `${POSE_LABEL_TR[assist.detected]} · %${conf} · ${wait}`;
-  }
-  if (assist.status === 'loading') {
-    return 'Yükleniyor…';
-  }
-  return 'Kamera kapalı';
 }
 
 const styles = StyleSheet.create({

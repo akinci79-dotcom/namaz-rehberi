@@ -1,5 +1,7 @@
 import { classifyPose } from '../src/pose/classifyPose';
+import { samePoseDwellMs } from '../src/pose/stepPose';
 import type { PoseLandmark } from '../src/pose/types';
+import type { PrayerStep } from '../src/types/prayer';
 
 function body(points: Record<number, [number, number]>): PoseLandmark[] {
   const out: PoseLandmark[] = Array.from({ length: 33 }, () => ({
@@ -70,11 +72,20 @@ function secde(): PoseLandmark[] {
   });
 }
 
+function closeUp(): PoseLandmark[] {
+  return body({
+    0: [0.5, 0.28],
+    11: [0.22, 0.48],
+    12: [0.78, 0.48],
+  });
+}
+
 const cases: Array<[string, PoseLandmark[], string]> = [
   ['standing', standing(), 'kiyam'],
   ['ruku', ruku(), 'ruku'],
   ['sitting', sitting(), 'oturus'],
   ['secde', secde(), 'secde'],
+  ['closeUp', closeUp(), 'kiyam'],
 ];
 
 let failed = 0;
@@ -85,6 +96,17 @@ for (const [name, landmarks, expected] of cases) {
   if (!ok) {
     failed += 1;
   }
+}
+
+const niyet = { kind: 'niyet', sitting: undefined, rakah: 1 } as PrayerStep;
+const lastSit = { kind: 'tahiyyat', sitting: 'last', rakah: 2 } as PrayerStep;
+if (samePoseDwellMs(niyet) < 3000) {
+  console.log('FAIL niyet dwell too short');
+  failed += 1;
+}
+if (samePoseDwellMs(lastSit) < 10000) {
+  console.log('FAIL last tahiyyat dwell too short');
+  failed += 1;
 }
 
 if (failed) {
