@@ -70,8 +70,7 @@ export function PrayerScreen({
     onIndexChange(stepIndex - 1);
   }, [isFirst, onHaptic, onIndexChange, stepIndex]);
 
-  const goNext = useCallback(() => {
-    unlockSpeech();
+  const advanceStep = useCallback(() => {
     onHaptic('medium');
     if (isLast) {
       onComplete();
@@ -80,14 +79,19 @@ export function PrayerScreen({
     onIndexChange(stepIndex + 1);
   }, [isLast, onComplete, onHaptic, onIndexChange, stepIndex]);
 
+  const goNext = useCallback(() => {
+    unlockSpeech();
+    advanceStep();
+  }, [advanceStep]);
+
   const assist = usePoseAssist({
     enabled: cameraOn,
     steps,
     stepIndex,
-    onAdvance: goNext,
+    onAdvance: advanceStep,
   });
 
-  usePrayerVoice(steps, stepIndex, !voiceMuted);
+  usePrayerVoice(prayerId, steps, stepIndex, !voiceMuted);
 
   const requestCamera = () => {
     if (cameraOn) {

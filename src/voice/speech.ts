@@ -1,5 +1,4 @@
 import { isWebRuntime } from '../pose/publicUrl';
-import type { PrayerStep } from '../types/prayer';
 
 const MUTE_KEY = 'namaz.voiceMuted.v1';
 
@@ -67,14 +66,6 @@ export function speakCue(text: string): void {
   } catch {
     // konuşma yoksa namaz devam eder
   }
-}
-
-/** Adım ileri gidince: önceki adım 2. secdeyse biten rekâtın sayısı. */
-export function cueAfterLeavingStep(left: PrayerStep | undefined, advanced: boolean): string | null {
-  if (!advanced || left?.kind !== 'secde2') {
-    return null;
-  }
-  return rakahNumberWord(left.rakah);
 }
 
 /** Tamamlanan rekât sayısı — yalnızca 2. secdeden çıkışta söylenir. */

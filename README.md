@@ -31,7 +31,7 @@ Namaz ekranında **Kamera yardımcısı**nı açın. Ön kamera duruşu tanır (
 
 - **Aynı duruş** (niyet → iftitah → kıyam): birkaç saniyelik zamanlayıcıyla dokunmadan ilerler.
 - **Duruş değişimi** (rükû, secde, oturuş, ayağa kalk): kamera o duruşu görünce geçer; görünmezse yedek süre sonra yine ilerler.
-- **Ses:** yalnızca **biten rekâtın sayısı** bir kez (1 **bir**, 2 **iki**, 3 **üç**, 4 **dört**) — 2. secdeden sonra ayağa kalkışta veya son oturuşa geçişte. Secde / rükû / kalk sözleri yok. **Ses kapalı** düğmesi vardır. Konuşan uygulamadır, kılan kişi değil.
+- **Ses:** yalnızca adım **`secde2` → `kalkış` veya `tahiyyat`** (ilk/son oturuş) geçişinde, biten rekâtın sayısı bir kez (1 **bir**, 2 **iki**, 3 **üç**, 4 **dört**). Rükûdan kalkış (kavme), 1. secdeden celse, secdeye giriş veya duruş titremesi konuşturmaz. **Ses kapalı** düğmesi vardır.
 - İlk yüklemeden sonra kabuk + duruş modeli servis çalışanıyla önbelleğe alınır; namaz ortasında Wi‑Fi kopsa ekran boşalmamalıdır. Bitiş ekranı **Namaz bitti** yereldedir.
 - % sayacı yoktur; durum metni ne beklendiğini söyler (ör. “Şimdi rükûya eğilin”).
 - Görüntü **yalnızca cihazda** işlenir; kareler yüklenmez ve kaydedilmez.

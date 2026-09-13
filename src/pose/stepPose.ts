@@ -49,6 +49,27 @@ export function samePoseDwellMs(step: PrayerStep): number {
   }
 }
 
+/**
+ * Secde / celse: duruş görülmeden yedek süreyle atlama.
+ * Aksi halde ayakta titreme 2. secdeyi “bitmiş” saydırır.
+ */
+export function requireSeenPoseBeforeAdvance(kind: StepKind): boolean {
+  return kind === 'secde1' || kind === 'secde2' || kind === 'celse' || kind === 'ruku';
+}
+
+export function canAdvanceOnDetectedPose(input: {
+  seenCurrentPose: boolean;
+  detected: BodyPose;
+  nextPose: BodyPose | null;
+}): boolean {
+  return (
+    input.seenCurrentPose &&
+    input.nextPose != null &&
+    input.detected !== 'unknown' &&
+    input.detected === input.nextPose
+  );
+}
+
 /** Duruş değişimi gelmezse takılmamak için yedek süre (kıraat bitene kadar uzun). */
 export function poseWaitFallbackMs(step: PrayerStep): number {
   switch (step.kind) {

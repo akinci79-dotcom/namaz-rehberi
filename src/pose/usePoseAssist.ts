@@ -4,7 +4,13 @@ import type { PrayerStep } from '../types/prayer';
 import { classifyPose } from './classifyPose';
 import { createPoseLandmarker, type PoseLandmarkerHandle } from './mediapipe';
 import { cameraSupported, isWebRuntime } from './publicUrl';
-import { poseForStepKind, poseWaitFallbackMs, samePoseDwellMs } from './stepPose';
+import {
+  canAdvanceOnDetectedPose,
+  poseForStepKind,
+  poseWaitFallbackMs,
+  requireSeenPoseBeforeAdvance,
+  samePoseDwellMs,
+} from './stepPose';
 import type { BodyPose, Framing } from './types';
 import { POSE_CUE_TR, POSE_LABEL_TR } from './types';
 
@@ -17,8 +23,9 @@ export type AssistStatus =
   | 'unsupported'
   | 'error';
 
-const HOLD_MS = 750;
-const COOLDOWN_MS = 900;
+const HOLD_MS = 1000;
+const SEEN_HOLD_MS = 450;
+const COOLDOWN_MS = 1100;
 const FRAME_MS = 140;
 
 interface Options {
@@ -95,6 +102,8 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     let lastAdvance = 0;
     let timerAnchor = performance.now();
     let timerStep = -1;
+    let seenCurrentPose = false;
+    let seenCurrentAt = 0;
     let prevPose: BodyPose | undefined;
     let stablePose: BodyPose = 'unknown';
     let publishedPose: BodyPose = 'unknown';
@@ -128,6 +137,8 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
         timerStep = idx;
         timerAnchor = now;
         holdStarted = 0;
+        seenCurrentPose = false;
+        seenCurrentAt = 0;
       }
       if (now - lastAdvance < COOLDOWN_MS) {
         return;
@@ -137,6 +148,13 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       const from = poseForStepKind(here.kind);
       const to = nxt ? poseForStepKind(nxt.kind) : null;
       const samePose = !to || from === to;
+      if (pose === from && pose !== 'unknown') {
+        if (!seenCurrentPose) {
+          seenCurrentAt = now;
+        }
+        seenCurrentPose = true;
+      }
+      const currentCommitted = seenCurrentPose && now - seenCurrentAt >= SEEN_HOLD_MS;
 
       if (samePose) {
         const dwell = samePoseDwellMs(here);
@@ -149,7 +167,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
         return;
       }
 
-      if (pose === to && pose !== 'unknown') {
+      if (canAdvanceOnDetectedPose({ seenCurrentPose: currentCommitted, detected: pose, nextPose: to })) {
         if (!holdStarted) {
           holdStarted = now;
         }
@@ -163,6 +181,10 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       }
 
       holdStarted = 0;
+      if (requireSeenPoseBeforeAdvance(here.kind) && !currentCommitted) {
+        setCountdownSec(null);
+        return;
+      }
       const fallback = poseWaitFallbackMs(here);
       const left = Math.max(0, fallback - (now - timerAnchor));
       setCountdownSec(Math.ceil(left / 1000));
@@ -265,7 +287,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
                   stableCount = 1;
                   stablePose = guess.pose;
                 }
-                if (stableCount >= 2 || guess.pose === 'unknown') {
+                if (stableCount >= 3 || guess.pose === 'unknown') {
                   publishedPose = guess.pose;
                   setDetected(guess.pose);
                   pose = guess.pose;

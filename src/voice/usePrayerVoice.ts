@@ -1,44 +1,39 @@
 import { useEffect, useRef } from 'react';
 
-import type { PrayerStep } from '../types/prayer';
-import { cueAfterLeavingStep, speakCue, transitionCueForStepKind } from './speech';
+import type { PrayerId, PrayerStep } from '../types/prayer';
+import { completedRakahAnnouncements } from './rakahComplete';
+import { speakCue } from './speech';
 
 /**
- * Rekât bitince (2. secdeden kalkış / son oturuşa geçiş) bir kez sayı söyler.
- * Secde girişinde veya duruş tutulurken konuşmaz. Geri gidince tekrar etmez.
+ * Yalnızca 2. secde adımı bırakılınca (kalkış / ilk veya son oturuş) bir kez
+ * rekât sayısı. Duruş algısı veya rükûdan doğrulma konuşturmaz.
  */
-export function usePrayerVoice(steps: readonly PrayerStep[], stepIndex: number, enabled: boolean): void {
+export function usePrayerVoice(
+  prayerId: PrayerId,
+  steps: readonly PrayerStep[],
+  stepIndex: number,
+  enabled: boolean,
+): void {
   const prevIndex = useRef(stepIndex);
-  const lastAnnouncedRakah = useRef<number | null>(null);
+  const announced = useRef(new Set<number>());
 
   useEffect(() => {
     prevIndex.current = 0;
-    lastAnnouncedRakah.current = null;
-  }, [steps]);
+    announced.current = new Set();
+  }, [prayerId]);
 
   useEffect(() => {
-    const previous = prevIndex.current;
+    const from = prevIndex.current;
     prevIndex.current = stepIndex;
 
-    if (!enabled) {
-      return;
-    }
-    if (stepIndex <= previous) {
+    if (!enabled || stepIndex <= from) {
       return;
     }
 
-    const left = steps[previous];
-    const word = cueAfterLeavingStep(left, true);
-    if (word && left && lastAnnouncedRakah.current !== left.rakah) {
-      lastAnnouncedRakah.current = left.rakah;
-      speakCue(word);
-      return;
-    }
-
-    const entered = steps[stepIndex];
-    const extra = entered ? transitionCueForStepKind(entered.kind) : null;
-    if (extra) {
-      speakCue(extra);
+    const cues = completedRakahAnnouncements(steps, from, stepIndex, announced.current);
+    for (const cue of cues) {
+      announced.current.add(cue.rakah);
+      speakCue(cue.word);
     }
   }, [enabled, stepIndex, steps]);
 }
