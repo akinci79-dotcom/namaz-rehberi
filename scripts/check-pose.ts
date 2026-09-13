@@ -2,6 +2,7 @@ import { classifyPose } from '../src/pose/classifyPose';
 import { samePoseDwellMs } from '../src/pose/stepPose';
 import type { PoseLandmark } from '../src/pose/types';
 import type { PrayerStep } from '../src/types/prayer';
+import { cueForStepKind } from '../src/voice/speech';
 
 function body(points: Record<number, [number, number]>): PoseLandmark[] {
   const out: PoseLandmark[] = Array.from({ length: 33 }, () => ({
@@ -106,6 +107,10 @@ if (samePoseDwellMs(niyet) < 3000) {
 }
 if (samePoseDwellMs(lastSit) < 10000) {
   console.log('FAIL last tahiyyat dwell too short');
+  failed += 1;
+}
+if (cueForStepKind('secde1') !== 'bir' || cueForStepKind('secde2') !== 'iki') {
+  console.log('FAIL secde voice cues');
   failed += 1;
 }
 

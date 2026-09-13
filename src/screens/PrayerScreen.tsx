@@ -13,10 +13,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraAssistBar } from '../components/CameraAssistBar';
 import { PrivacyModal } from '../components/PrivacyModal';
 import { StepProgress } from '../components/StepProgress';
+import { VoiceToggle } from '../components/VoiceToggle';
 import { getNextTitle, getPrayer, getPrayerSteps, MADHAB_LABEL, rankLabel } from '../data';
 import { usePoseAssist } from '../pose/usePoseAssist';
 import type { Theme } from '../theme/colors';
 import type { PrayerId, SittingKind } from '../types/prayer';
+import { isVoiceMuted, setVoiceMuted, unlockSpeech } from '../voice/speech';
+import { usePrayerVoice } from '../voice/usePrayerVoice';
 
 const PRIVACY_KEY = 'namaz.cameraPrivacy.v1';
 
@@ -57,6 +60,7 @@ export function PrayerScreen({
   const isLast = stepIndex >= steps.length - 1;
   const [cameraOn, setCameraOn] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [voiceMuted, setVoiceMutedState] = useState(isVoiceMuted);
 
   const goPrev = useCallback(() => {
     if (isFirst) {
@@ -67,6 +71,7 @@ export function PrayerScreen({
   }, [isFirst, onHaptic, onIndexChange, stepIndex]);
 
   const goNext = useCallback(() => {
+    unlockSpeech();
     onHaptic('medium');
     if (isLast) {
       onComplete();
@@ -82,6 +87,8 @@ export function PrayerScreen({
     onAdvance: goNext,
   });
 
+  usePrayerVoice(steps, stepIndex, !voiceMuted);
+
   const requestCamera = () => {
     if (cameraOn) {
       setCameraOn(false);
@@ -92,6 +99,7 @@ export function PrayerScreen({
       setPrivacyOpen(true);
       return;
     }
+    unlockSpeech();
     setCameraOn(true);
   };
 
@@ -122,6 +130,18 @@ export function PrayerScreen({
               {prayer.rakahCount} rekât {rankLabel(prayer).toLocaleLowerCase('tr-TR')}
             </Text>
           </View>
+          <VoiceToggle
+            theme={theme}
+            muted={voiceMuted}
+            onToggle={() => {
+              const nextMuted = !voiceMuted;
+              setVoiceMuted(nextMuted);
+              setVoiceMutedState(nextMuted);
+              if (!nextMuted) {
+                unlockSpeech();
+              }
+            }}
+          />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Namazı bitir ve çık"
@@ -151,6 +171,7 @@ export function PrayerScreen({
               localStorage.setItem(PRIVACY_KEY, '1');
             }
             setPrivacyOpen(false);
+            unlockSpeech();
             setCameraOn(true);
           }}
         />
@@ -206,8 +227,8 @@ export function PrayerScreen({
 
             <Text style={[styles.tapHint, { color: theme.textMuted }]}>
               {cameraOn
-                ? 'Aynı duruştaki adımlar birkaç saniyede kendiliğinden geçer. Rükû/secde için duruşunuz yeter; gerekirse Sonraki yedektir.'
-                : 'İlerlemek için yazıya dokun veya kamera yardımcısını aç'}
+                ? 'Secdede cihaz “bir / iki” der. Aynı duruş zamanlayıcıyla geçer; rükû/secde duruşla.'
+                : 'Secdede cihaz “bir / iki” der. İlerlemek için dokunun veya kamerayı açın.'}
             </Text>
           </Pressable>
         </ScrollView>
@@ -271,7 +292,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   topCopy: {
     flex: 1,

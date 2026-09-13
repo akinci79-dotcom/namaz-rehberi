@@ -7,6 +7,7 @@ import { PrayerCard } from '../components/PrayerCard';
 import { PRAYERS } from '../data';
 import type { Theme } from '../theme/colors';
 import type { PrayerId } from '../types/prayer';
+import { unlockSpeech } from '../voice/speech';
 
 interface Props {
   theme: Theme;
@@ -35,7 +36,10 @@ export function HomeScreen({ theme, onSelect }: Props) {
               key={prayer.id}
               prayer={prayer}
               theme={theme}
-              onPress={() => onSelect(prayer.id)}
+              onPress={() => {
+                unlockSpeech();
+                onSelect(prayer.id);
+              }}
             />
           ))}
         </View>
@@ -43,8 +47,8 @@ export function HomeScreen({ theme, onSelect }: Props) {
         <DisclaimerCard theme={theme} />
 
         <Text style={[styles.footnote, { color: theme.textMuted }]}>
-          Sünnet ve nafile yok. Kamera yardımcısı aynı duruştaki adımları zamanlayıcıyla,
-          rükû/secdeyi duruşla ilerletir; görüntü cihazda kalır. Sonraki / Önceki yedektir.
+          Sünnet ve nafile yok. Secdede cihaz “bir / iki” der. Kamera aynı duruşu
+          zamanlayıcıyla, rükû/secdeyi duruşla ilerletir. Görüntü ve ses cihazda kalır.
         </Text>
       </ScrollView>
     </SafeAreaView>

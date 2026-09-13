@@ -22,7 +22,7 @@ export function DoneScreen({ theme, prayerId, onHome, onRepeat }: Props) {
         <Text style={[styles.kicker, { color: theme.accent }]}>
           {prayer.name} · {MADHAB_LABEL}
         </Text>
-        <Text style={[styles.title, { color: theme.text }]}>Namaz tamamlandı</Text>
+        <Text style={[styles.title, { color: theme.text }]}>Namaz bitti</Text>
         <Text style={[styles.lead, { color: theme.textMuted }]}>
           {prayer.rakahCount} rekât {rankLabel(prayer).toLocaleLowerCase('tr-TR')}, {steps.length}{' '}
           adım. Allah kabul etsin.
@@ -30,8 +30,8 @@ export function DoneScreen({ theme, prayerId, onHome, onRepeat }: Props) {
 
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.cardText, { color: theme.textMuted }]}>
-            Bu bir hatırlatma yardımcısıdır; namazın geçerliliği niyetinize, abdestinize ve
-            kıldığınız namaza bağlıdır. Şüphede kaldığınız noktayı güvenilir bir âlime sorunuz.
+            Bu ekran cihazınızda; internet gerekmez ve başka bir siteye gitmez. Namazın
+            geçerliliği niyetinize, abdestinize ve kıldığınız namaza bağlıdır.
           </Text>
         </View>
       </View>
