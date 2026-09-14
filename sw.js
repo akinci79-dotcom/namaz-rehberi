@@ -4,7 +4,7 @@ const ASSETS = [
   "./index.html",
   "./404.html",
   "./.nojekyll",
-  "./_expo/static/js/web/index-92d6e6a6bb3cfa871efc6bc66df45b23.js",
+  "./_expo/static/js/web/index-ef26915c423fbe5853dfb224c13c5cf0.js",
   "./apple-touch-icon.png",
   "./favicon.ico",
   "./manifest.webmanifest",
