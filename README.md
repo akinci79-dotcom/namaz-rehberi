@@ -9,21 +9,50 @@ Telefonu veya tableti namazın önüne koyup, hangi rekâtta olduğunu ve sırad
 
 Bu bir kişisel yardımcıdır; yaygın öğretilen Hanefi uygulamaya dayanır. Güvenilir bir âlime danışarak teyit ediniz. **Fetva değildir.**
 
-## iPad / iPhone’da hemen açmak (Safari)
+## GitHub: kaynak kod ve canlı site
 
-Bilgisayar veya Expo Go gerekmez. Safari’de şu adresi açın:
+Aynı depo, iki dal:
+
+| Dal | İçerik |
+|-----|--------|
+| **`source`** | Tam Expo / TypeScript kaynak (`package.json`, `src/`, `App.tsx`, …) |
+| **`main`** | Yalnızca web derlemesi (GitHub Pages: `index.html`, `_expo/`, `sw.js`) |
+
+Kaynağı klonlamak:
+
+```bash
+git clone -b source https://github.com/akinci79-dotcom/namaz-rehberi.git
+cd namaz-rehberi
+npm install
+```
+
+Canlı site (Safari, kaynak gerekmez):
 
 **https://akinci79-dotcom.github.io/namaz-rehberi/**
 
-İsteğe bağlı: Safari’de **Paylaş → Ana Ekrana Ekle**. Uygulama gibi tam ekran açılır (adres çubuğu gizlenir).
+## Geliştirme
 
-Kaynak: `npx expo export -p web` çıktısı GitHub Pages’te yayınlanır. Güncellemek için:
+```bash
+npx expo start          # QR (Expo Go) veya tarayıcı
+npx expo start --web    # web önizleme
+npm run typecheck
+npm run check:prayers
+npm run check:pose
+```
+
+## Web derlemesi ve Pages yayını
+
+GitHub Actions yok. Yayın elle: derleme `dist/` üretir, içeriği deponun **`main`** dalına (Pages) kopyalanır.
 
 ```bash
 npm run export:web
+# dist/ = index.html + _expo + mediapipe wasm + sw.js
+# MediaPipe wasm npm paketinden kopyalanır (git'te tutulmaz).
 ```
 
-Ardından `dist/` içeriğini Pages sitesine kopyalayın.
+`dist/` içeriğini `akinci79-dotcom/namaz-rehberi` **`main`** dalına (force-push, yalnızca derleme) gönderin. `source` dalına `node_modules/` veya `dist/` koymayın.
+
+İsteğe bağlı: Safari’de **Paylaş → Ana Ekrana Ekle**.
 
 ### Kamera yardımcısı (iPad / iPhone Safari)
 
