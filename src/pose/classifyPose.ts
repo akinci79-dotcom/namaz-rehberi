@@ -53,13 +53,18 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
   const hipL = landmarks[L_HIP];
   const hipR = landmarks[R_HIP];
 
-  if (!visible(nose, 0.18)) {
-    return empty('none');
-  }
+  // ÖNEMLİ: burnu ZORUNLU tutmuyoruz. Secdede yüz aşağı/kameradan uzağa döner ve
+  // MediaPipe burnu çoğu zaman düşük güvenle (veya hiç) görür — tam olarak
+  // saymamız gereken duruşta burun yokluğunu "vücut yok" sayıp sessizce hiçbir
+  // şey algılamamak, kamera tabanlı ilerlemeyi rekat sayımının en kritik anında
+  // (2. secde) devre dışı bırakırdı. Burun sadece "close" kadraj tespiti ve
+  // secde'nin "compact" (baştan dize kısa mesafe) sinyali için ek bilgi olarak
+  // kullanılır; omuz/kalça/diz varsa sınıflandırma burunsuz da devam eder.
+  const hasNose = visible(nose, 0.18);
 
   const hasShoulders = visible(shoulderL, 0.18) && visible(shoulderR, 0.18);
   if (!hasShoulders) {
-    return empty(nose.y < 0.55 ? 'close' : 'none');
+    return empty(hasNose && nose.y < 0.55 ? 'close' : 'none');
   }
 
   const shoulder = mid(shoulderL, shoulderR);
@@ -68,7 +73,9 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
 
   const hasHips = visible(hipL, 0.16) && visible(hipR, 0.16);
   if (!hasHips) {
-    const uprightFace = nose.y < shoulder.y;
+    // Burun yoksa "ayakta mı" sorusuna cevap veremeyiz — kalça da yoksa elimizde
+    // yalnızca omuz var, bu da secde/rükû/kıyamı ayırt etmeye yetmez.
+    const uprightFace = hasNose && nose.y < shoulder.y;
     if (tooClose) {
       return {
         pose: uprightFace ? 'kiyam' : 'unknown',
@@ -123,12 +130,15 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
   }
 
   const legNorm = (lowerRef.y - hip.y) / scale;
-  const spanNorm = (lowerRef.y - nose.y) / scale;
   const highTorso = clamp((torsoNorm - 0.38) / 0.5, 0, 1);
   const lowTorso = clamp((0.52 - torsoNorm) / 0.4, 0, 1);
   const highLeg = clamp((legNorm - 0.95) / 0.55, 0, 1);
   const lowLeg = clamp((1.05 - legNorm) / 0.55, 0, 1);
-  const compact = clamp((1.45 - spanNorm) / 0.7, 0, 1);
+  // "compact" (baştan dize kısa mesafe) burun gerektirir; burun yoksa (secdede sık
+  // görülen durum) bu ek sinyalden vazgeçip ana sinyale (lowTorso*lowLeg) güveniriz —
+  // burnu zorunlu kılıp secde'yi hiç algılamamaktan çok daha iyi.
+  const spanNorm = hasNose ? (lowerRef.y - nose.y) / scale : null;
+  const compact = spanNorm !== null ? clamp((1.45 - spanNorm) / 0.7, 0, 1) : 0;
 
   return pick(
     {

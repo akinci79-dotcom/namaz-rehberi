@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { PrayerStep } from '../types/prayer';
 import {
+  accumulateHold,
   cameraDebugLine,
   cameraStatusText,
   expectedPoseForTransition,
@@ -153,11 +154,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       lastTickAt = now;
 
       const expected = expectedPoseForTransition(list, idx, currentConfirmed);
-      if (expected && pose === expected) {
-        holdExpectedMs += dt;
-      } else if (pose !== 'unknown' && pose !== expected) {
-        holdExpectedMs = 0;
-      }
+      holdExpectedMs = accumulateHold(holdExpectedMs, dt, pose, expected);
 
       const result = tickCameraAdvance({
         steps: list,

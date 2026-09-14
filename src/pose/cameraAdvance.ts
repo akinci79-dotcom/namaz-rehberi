@@ -74,9 +74,32 @@ export function expectedPoseForTransition(
 }
 
 /**
+ * Beklenen duruşun tutulma süresini biriktirir. Tek bir gürültülü/yanlış kare
+ * (MediaPipe karesel sıçraması, geçiş anındaki motion blur) tüm ilerlemeyi SIFIRLAMAZ
+ * — yalnızca yumuşak biçimde azaltır. 'unknown' (kısa süreli oklüzyon, kare atlaması)
+ * hiç ceza vermez: ilerleme de eklemez, azaltmaz da. Eskiden tek yanlış kare
+ * holdExpectedMs'i 0'a çekiyordu; gerçek harekette (özellikle rükû/secdeye giriş
+ * çıkışlarda) bu, 850ms'lik kesintisiz doğru algı şartını pratikte imkansız kılıyordu.
+ */
+export function accumulateHold(
+  holdMs: number,
+  dt: number,
+  detected: BodyPose,
+  expected: BodyPose | null,
+): number {
+  if (expected && detected === expected) {
+    return holdMs + dt;
+  }
+  if (detected === 'unknown' || !expected) {
+    return holdMs;
+  }
+  return Math.max(0, holdMs - dt * 2);
+}
+
+/**
  * INVARIANT: model hazır, sonraki adım var, detected === expectedPose,
  * holdExpectedMs >= CAMERA_HOLD_MS → advance true (rükû 1. faz hariç: commitCurrent).
- * Çağıran, advance true ise Sonraki ile aynı onAdvance’i çağırmak ZORUNDADIR.
+ * Çağıran, advance true ise Sonraki ile aynı onAdvance'i çağırmak ZORUNDADIR.
  */
 export function tickCameraAdvance(input: CameraTickInput): CameraTickResult {
   const current = input.steps[input.index];

@@ -4,6 +4,7 @@ import type { PoseLandmark } from '../src/pose/types';
 import type { PrayerStep } from '../src/types/prayer';
 import { getPrayerSteps, PRAYERS } from '../src/data';
 import {
+  accumulateHold,
   cameraIdleWouldAdvance,
   cameraStatusText,
   CAMERA_HOLD_MS,
@@ -102,6 +103,19 @@ function upperBodyOnlySitting(): PoseLandmark[] {
   });
 }
 
+/** Gerçek secdede yüz yere/kameradan uzağa döner — burun genelde görünmez. */
+function secdeNoNose(): PoseLandmark[] {
+  const points = secde();
+  points[0] = { ...points[0], visibility: 0 };
+  return points;
+}
+
+function rukuNoNose(): PoseLandmark[] {
+  const points = ruku();
+  points[0] = { ...points[0], visibility: 0 };
+  return points;
+}
+
 const cases: Array<[string, PoseLandmark[], string]> = [
   ['standing', standing(), 'kiyam'],
   ['ruku', ruku(), 'ruku'],
@@ -162,6 +176,47 @@ const legsOkText = cameraStatusText({
 if (legsOkText.includes('Dizler görünmüyor')) {
   console.log('FAIL legsMissing=false must not show knee warning');
   failed += 1;
+}
+
+// Regresyon: secdede burun görünmese de (yüz yere/kameradan uzak döner) omuz+kalça+diz
+// varken secde ALGILANMALI — burnu zorunlu tutan eski kod, en kritik anda (2. secde)
+// sessizce "unknown" dönüp kamera tabanlı rekat sayımını devre dışı bırakıyordu.
+const secdeNoNoseGuess = classifyPose(secdeNoNose());
+if (secdeNoNoseGuess.pose !== 'secde') {
+  console.log(`FAIL secde without visible nose should still classify as secde, got ${secdeNoNoseGuess.pose}`);
+  failed += 1;
+}
+const rukuNoNoseGuess = classifyPose(rukuNoNose());
+if (rukuNoNoseGuess.pose !== 'ruku') {
+  console.log(`FAIL ruku without visible nose should still classify as ruku, got ${rukuNoNoseGuess.pose}`);
+  failed += 1;
+}
+
+// accumulateHold: tek yanlış/gürültülü kare tüm ilerlemeyi sıfırlamamalı (yumuşak azalma),
+// 'unknown' (kısa oklüzyon) hiç ceza vermemeli, doğru kare biriktirmeli.
+{
+  let hold = 0;
+  hold = accumulateHold(hold, 140, 'secde', 'secde');
+  hold = accumulateHold(hold, 140, 'secde', 'secde');
+  hold = accumulateHold(hold, 140, 'secde', 'secde');
+  if (hold !== 420) {
+    console.log(`FAIL accumulateHold should add dt while matching, got ${hold}`);
+    failed += 1;
+  }
+  const afterUnknown = accumulateHold(hold, 140, 'unknown', 'secde');
+  if (afterUnknown !== hold) {
+    console.log('FAIL accumulateHold must not penalize unknown (brief occlusion)');
+    failed += 1;
+  }
+  const afterWrongPose = accumulateHold(hold, 140, 'kiyam', 'secde');
+  if (afterWrongPose === 0 || afterWrongPose >= hold) {
+    console.log(`FAIL accumulateHold should decay (not hard-reset) on a single wrong frame, got ${afterWrongPose} from ${hold}`);
+    failed += 1;
+  }
+  if (accumulateHold(50, 1000, 'kiyam', 'secde') !== 0) {
+    console.log('FAIL accumulateHold must clamp decay at 0');
+    failed += 1;
+  }
 }
 
 const niyet = { kind: 'niyet', sitting: undefined, rakah: 1 } as PrayerStep;
