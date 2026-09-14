@@ -35,9 +35,18 @@ export function CameraAssistBar({ theme, enabled, onToggle, assist, previewHeigh
               <ToggleChip theme={theme} enabled={enabled} onToggle={onToggle} />
               <Text style={styles.frameHint}>Baş · omuz · bel kadrajda olsun</Text>
             </View>
-            <View style={styles.overlayBottom}>
-              <Text style={styles.statusOn}>{assist.statusText}</Text>
-              <Text style={styles.debugOn}>{assist.debugLine}</Text>
+            <View
+              style={[
+                styles.overlayBottom,
+                assist.passedFlash ? styles.overlayPassed : null,
+              ]}
+            >
+              <Text style={[styles.statusOn, assist.passedFlash ? styles.statusPassed : null]}>
+                {assist.statusText}
+              </Text>
+              <Text style={[styles.debugOn, assist.passedFlash ? styles.debugPassed : null]}>
+                {assist.debugLine}
+              </Text>
             </View>
           </View>
         </View>
@@ -171,6 +180,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     gap: 4,
+  },
+  overlayPassed: {
+    backgroundColor: 'rgba(212,168,75,0.92)',
+  },
+  statusPassed: {
+    color: '#1A1408',
+  },
+  debugPassed: {
+    color: '#3A2E14',
   },
   frameHint: {
     flex: 1,

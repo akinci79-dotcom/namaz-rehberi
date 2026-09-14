@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -64,22 +64,27 @@ export function PrayerScreen({
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [voiceMuted, setVoiceMutedState] = useState(isVoiceMuted);
 
+  const indexRef = useRef(stepIndex);
+  indexRef.current = stepIndex;
+  const lastRef = useRef(isLast);
+  lastRef.current = isLast;
+
   const goPrev = useCallback(() => {
-    if (isFirst) {
+    if (indexRef.current <= 0) {
       return;
     }
     onHaptic('light');
-    onIndexChange(stepIndex - 1);
-  }, [isFirst, onHaptic, onIndexChange, stepIndex]);
+    onIndexChange(indexRef.current - 1);
+  }, [onHaptic, onIndexChange]);
 
   const advanceStep = useCallback(() => {
     onHaptic('medium');
-    if (isLast) {
+    if (lastRef.current) {
       onComplete();
       return;
     }
-    onIndexChange(stepIndex + 1);
-  }, [isLast, onComplete, onHaptic, onIndexChange, stepIndex]);
+    onIndexChange(indexRef.current + 1);
+  }, [onComplete, onHaptic, onIndexChange]);
 
   const goNext = useCallback(() => {
     unlockSpeech();

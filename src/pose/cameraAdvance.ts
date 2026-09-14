@@ -1,120 +1,127 @@
 import type { StepKind } from '../types/prayer';
 
-import { poseForStepKind, requireSeenPoseBeforeAdvance } from './stepPose';
+import { poseForStepKind } from './stepPose';
 import type { BodyPose } from './types';
 import { POSE_WAIT_TR } from './types';
 
-/** Sonraki duruş bu kadar tutulunca kamera ilerletir. Saat ile adım atılmaz. */
+/** Algı = beklenen duruş bu kadar tutulunca Sonraki ile aynı ilerleme. Saat yok. */
 export const CAMERA_HOLD_MS = 850;
-export const CAMERA_SEEN_MS = 400;
 
 export type AdvanceHint = 'camera' | 'manual' | 'none';
 
+export interface CameraStepRef {
+  kind: StepKind;
+}
+
 export interface CameraTickInput {
-  currentKind: StepKind;
-  nextKind: StepKind | undefined;
+  steps: readonly CameraStepRef[];
+  index: number;
   detected: BodyPose;
-  seenCurrentMs: number;
-  matchingNextMs: number;
+  holdExpectedMs: number;
+  /** Rükû: önce rükû teyidi, sonra kıyam (kavme). */
+  currentConfirmed: boolean;
   modelReady: boolean;
 }
 
 export interface CameraTickResult {
   advance: boolean;
+  /** Rükû birinci faz: adım ilerlemez, rükû teyit edilir. */
+  commitCurrent: boolean;
   hint: AdvanceHint;
-  seenCurrent: boolean;
   currentPose: BodyPose;
   expectedPose: BodyPose | null;
   waitingFor: BodyPose | null;
-  secde2Confirmed: boolean;
+  secde2Ready: boolean;
   samePose: boolean;
 }
 
+/**
+ * Bu adımı bırakmak için tutulması gereken duruş.
+ * secde1/secde2: secde (sonraki oturuş/kıyam değil — eski kapı sesi hiç tetiklemiyordu).
+ * celse: oturuş. rükû: önce rükû, teyitten sonra kıyam.
+ * kıyam/niyet: ilerideki ilk farklı duruş (genelde rükû).
+ */
+export function expectedPoseForTransition(
+  steps: readonly CameraStepRef[],
+  index: number,
+  currentConfirmed: boolean,
+): BodyPose | null {
+  const current = steps[index];
+  if (!current) {
+    return null;
+  }
+
+  switch (current.kind) {
+    case 'secde1':
+    case 'secde2':
+      return 'secde';
+    case 'celse':
+      return 'oturus';
+    case 'ruku':
+      return currentConfirmed ? 'kiyam' : 'ruku';
+    default:
+      break;
+  }
+
+  const from = poseForStepKind(current.kind);
+  for (let i = index + 1; i < steps.length; i += 1) {
+    const pose = poseForStepKind(steps[i].kind);
+    if (pose !== from) {
+      return pose;
+    }
+  }
+  return null;
+}
+
+/**
+ * INVARIANT: model hazır, sonraki adım var, detected === expectedPose,
+ * holdExpectedMs >= CAMERA_HOLD_MS → advance true (rükû 1. faz hariç: commitCurrent).
+ * Çağıran, advance true ise Sonraki ile aynı onAdvance’i çağırmak ZORUNDADIR.
+ */
 export function tickCameraAdvance(input: CameraTickInput): CameraTickResult {
-  const currentPose = poseForStepKind(input.currentKind);
-  const nextPose = input.nextKind ? poseForStepKind(input.nextKind) : null;
-  const samePose = !nextPose || nextPose === currentPose;
-  const seenCurrent = input.seenCurrentMs >= CAMERA_SEEN_MS;
-  const waitingFor = !samePose && nextPose ? nextPose : null;
-  const expectedPose = waitingFor ?? currentPose;
-  const secde2Confirmed = input.currentKind === 'secde2' && seenCurrent;
-  const mustSeeCurrent = requireSeenPoseBeforeAdvance(input.currentKind);
+  const current = input.steps[input.index];
+  const currentPose = current ? poseForStepKind(current.kind) : 'unknown';
+  const expectedPose = current
+    ? expectedPoseForTransition(input.steps, input.index, input.currentConfirmed)
+    : null;
+  const next = input.steps[input.index + 1];
+  const samePose = !expectedPose;
+  const waitingFor = expectedPose;
+  const secde2Ready = current?.kind === 'secde2' && input.detected === 'secde';
 
-  if (!input.modelReady) {
-    return {
-      advance: false,
-      hint: 'manual',
-      seenCurrent,
-      currentPose,
-      expectedPose,
-      waitingFor,
-      secde2Confirmed,
-      samePose,
-    };
-  }
-
-  if (!input.nextKind || samePose) {
-    return {
-      advance: false,
-      hint: 'manual',
-      seenCurrent,
-      currentPose,
-      expectedPose,
-      waitingFor: null,
-      secde2Confirmed,
-      samePose: true,
-    };
-  }
-
-  if (mustSeeCurrent && !seenCurrent) {
-    return {
-      advance: false,
-      hint: 'none',
-      seenCurrent,
-      currentPose,
-      expectedPose,
-      waitingFor,
-      secde2Confirmed,
-      samePose,
-    };
-  }
-
-  if (input.detected === nextPose && input.matchingNextMs >= CAMERA_HOLD_MS) {
-    return {
-      advance: true,
-      hint: 'camera',
-      seenCurrent,
-      currentPose,
-      expectedPose,
-      waitingFor,
-      secde2Confirmed,
-      samePose,
-    };
-  }
-
-  if (input.detected === nextPose) {
-    return {
-      advance: false,
-      hint: 'camera',
-      seenCurrent,
-      currentPose,
-      expectedPose,
-      waitingFor,
-      secde2Confirmed,
-      samePose,
-    };
-  }
-
-  return {
-    advance: false,
-    hint: 'none',
-    seenCurrent,
+  const base = {
+    commitCurrent: false,
     currentPose,
     expectedPose,
     waitingFor,
-    secde2Confirmed,
+    secde2Ready,
     samePose,
   };
+
+  if (!input.modelReady) {
+    return { ...base, advance: false, hint: 'manual' };
+  }
+  if (!current || !next || !expectedPose) {
+    return { ...base, advance: false, hint: 'manual', samePose: true };
+  }
+
+  const holding = input.detected === expectedPose;
+  const heldLongEnough = holding && input.holdExpectedMs >= CAMERA_HOLD_MS;
+
+  if (current.kind === 'ruku' && !input.currentConfirmed) {
+    if (heldLongEnough) {
+      return { ...base, advance: false, commitCurrent: true, hint: 'camera' };
+    }
+    return { ...base, advance: false, hint: holding ? 'camera' : 'none' };
+  }
+
+  if (heldLongEnough) {
+    return { ...base, advance: true, hint: 'camera' };
+  }
+  if (holding) {
+    return { ...base, advance: false, hint: 'camera' };
+  }
+  return { ...base, advance: false, hint: 'none' };
 }
 
 export function cameraStatusText(input: {
@@ -122,7 +129,11 @@ export function cameraStatusText(input: {
   bodyMissing: boolean;
   detected: BodyPose;
   tick: CameraTickResult;
+  passedLabel: string | null;
 }): string {
+  if (input.passedLabel) {
+    return input.passedLabel;
+  }
   if (input.bodyMissing) {
     return `Vücut görünmüyor — telefonu uzaklaştırın. Algı: ${POSE_WAIT_TR[input.detected]}`;
   }
@@ -130,8 +141,8 @@ export function cameraStatusText(input: {
     return `Yüz çok yakın — gövde kadraja girsin. Algı: ${POSE_WAIT_TR[input.detected]}`;
   }
 
-  if (input.tick.secde2Confirmed) {
-    return '2. secde görüldü — rekat sayılacak';
+  if (input.tick.secde2Ready) {
+    return `2. secde görüldü — rekat sayılacak · Algı: ${POSE_WAIT_TR[input.detected]}`;
   }
 
   const parts: string[] = [];
@@ -149,30 +160,30 @@ export function cameraDebugLine(detected: BodyPose, tick: CameraTickResult): str
   return `${detected} → ${expected} · advance: ${tick.hint}`;
 }
 
-/** Kamera açıkken duruş değişmezse adım artmamalı (süre yok). */
+/** Sabit duruşta süreyle adım artmamalı. */
 export function cameraIdleWouldAdvance(
-  input: Omit<CameraTickInput, 'seenCurrentMs' | 'matchingNextMs'>,
+  input: Omit<CameraTickInput, 'holdExpectedMs' | 'currentConfirmed'>,
   durationMs: number,
   stepMs = 50,
 ): boolean {
-  let seen = 0;
-  let match = 0;
-  const from = poseForStepKind(input.currentKind);
-  const to = input.nextKind ? poseForStepKind(input.nextKind) : null;
+  let hold = 0;
+  let confirmed = false;
   for (let t = 0; t <= durationMs; t += stepMs) {
-    if (input.detected === from) {
-      seen += stepMs;
-    }
-    if (to && input.detected === to) {
-      match += stepMs;
-    } else {
-      match = 0;
+    const expected = expectedPoseForTransition(input.steps, input.index, confirmed);
+    if (expected && input.detected === expected) {
+      hold += stepMs;
+    } else if (input.detected !== 'unknown') {
+      hold = 0;
     }
     const tick = tickCameraAdvance({
       ...input,
-      seenCurrentMs: seen,
-      matchingNextMs: match,
+      holdExpectedMs: hold,
+      currentConfirmed: confirmed,
     });
+    if (tick.commitCurrent) {
+      confirmed = true;
+      hold = 0;
+    }
     if (tick.advance) {
       return true;
     }

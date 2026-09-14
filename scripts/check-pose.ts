@@ -6,9 +6,10 @@ import { getPrayerSteps, PRAYERS } from '../src/data';
 import {
   cameraIdleWouldAdvance,
   CAMERA_HOLD_MS,
+  expectedPoseForTransition,
   tickCameraAdvance,
 } from '../src/pose/cameraAdvance';
-import { canAdvanceOnDetectedPose, requireSeenPoseBeforeAdvance } from '../src/pose/stepPose';
+import { requireSeenPoseBeforeAdvance } from '../src/pose/stepPose';
 import { completedRakahAnnouncements } from '../src/voice/rakahComplete';
 import { rakahNumberWord, transitionCueForStepKind } from '../src/voice/speech';
 
@@ -199,22 +200,91 @@ if (!ogleSecde2Last || ogle[ogleSecde2Last.index + 1]?.kind !== 'tahiyyat') {
   failed += 1;
 }
 
-if (
-  canAdvanceOnDetectedPose({ seenCurrentPose: false, detected: 'kiyam', nextPose: 'kiyam' }) ||
-  canAdvanceOnDetectedPose({ seenCurrentPose: true, detected: 'kiyam', nextPose: 'secde' })
-) {
-  console.log('FAIL pose advance gate');
-  failed += 1;
-}
 if (!requireSeenPoseBeforeAdvance('secde2') || requireSeenPoseBeforeAdvance('kavme')) {
   console.log('FAIL seen-pose requirement');
+  failed += 1;
+}
+
+const sabah = getPrayerSteps('sabah');
+const sabahNiyet = sabah.findIndex((step) => step.kind === 'niyet');
+const sabahKiyam = sabah.findIndex((step) => step.kind === 'kiyam');
+const sabahSecde1 = sabah.findIndex((step) => step.kind === 'secde1');
+const sabahSecde2 = sabah.findIndex((step) => step.kind === 'secde2');
+const sabahLastSecde2 = sabah.map((step, index) => ({ step, index })).filter((row) => row.step.kind === 'secde2').pop();
+
+if (expectedPoseForTransition(sabah, sabahNiyet, false) !== 'ruku') {
+  console.log('FAIL niyet should wait for ruku (look-ahead)');
+  failed += 1;
+}
+if (expectedPoseForTransition(sabah, sabahSecde1, false) !== 'secde') {
+  console.log('FAIL secde1 expected pose must be secde (not sit)');
+  failed += 1;
+}
+if (expectedPoseForTransition(sabah, sabahSecde2, false) !== 'secde') {
+  console.log('FAIL secde2 expected pose must be secde');
+  failed += 1;
+}
+
+function tickSabah(
+  index: number,
+  detected: 'kiyam' | 'ruku' | 'secde' | 'oturus' | 'unknown',
+  hold: number,
+  confirmed = false,
+  model = true,
+) {
+  return tickCameraAdvance({
+    steps: sabah,
+    index,
+    detected,
+    holdExpectedMs: hold,
+    currentConfirmed: confirmed,
+    modelReady: model,
+  });
+}
+
+if (!tickSabah(sabahKiyam, 'ruku', CAMERA_HOLD_MS).advance) {
+  console.log('FAIL kıyam + held rükû must call advance');
+  failed += 1;
+}
+if (!tickSabah(sabahNiyet, 'ruku', CAMERA_HOLD_MS).advance) {
+  console.log('FAIL niyet + held rükû must advance toward rükû');
+  failed += 1;
+}
+if (!tickSabah(sabahSecde1, 'secde', CAMERA_HOLD_MS).advance) {
+  console.log('FAIL secde1 + held secde must advance (Algı: secde → stepIndex++)');
+  failed += 1;
+}
+if (!tickSabah(sabahSecde2, 'secde', CAMERA_HOLD_MS).advance) {
+  console.log('FAIL secde2 + held secde must advance to kalkış/tahiyyat');
+  failed += 1;
+}
+
+if (sabahLastSecde2) {
+  const left = sabah[sabahLastSecde2.index];
+  const entered = sabah[sabahLastSecde2.index + 1];
+  const cameraWouldAdvance = tickSabah(sabahLastSecde2.index, 'secde', CAMERA_HOLD_MS).advance;
+  const voice = completedRakahAnnouncements(sabah, sabahLastSecde2.index, sabahLastSecde2.index + 1, new Set());
+  if (!cameraWouldAdvance || left.kind !== 'secde2' || entered?.kind !== 'tahiyyat' || voice[0]?.word !== 'iki') {
+    console.log('FAIL last sabah secde2 camera advance must unlock voice iki');
+    failed += 1;
+  }
+}
+
+const rukuIdx = sabah.findIndex((step) => step.kind === 'ruku');
+const rukuHold = tickSabah(rukuIdx, 'ruku', CAMERA_HOLD_MS, false);
+if (rukuHold.advance || !rukuHold.commitCurrent) {
+  console.log('FAIL rükû first phase confirms rükû, does not leave yet');
+  failed += 1;
+}
+if (!tickSabah(rukuIdx, 'kiyam', CAMERA_HOLD_MS, true).advance) {
+  console.log('FAIL rükû after confirm + kıyam hold must go to kavme');
   failed += 1;
 }
 
 const idle30 = { duration: 30_000 as const };
 if (
   cameraIdleWouldAdvance(
-    { currentKind: 'kiyam', nextKind: 'ruku', detected: 'kiyam', modelReady: true },
+    { steps: sabah, index: sabahKiyam, detected: 'kiyam', modelReady: true },
     idle30.duration,
   )
 ) {
@@ -223,7 +293,7 @@ if (
 }
 if (
   cameraIdleWouldAdvance(
-    { currentKind: 'niyet', nextKind: 'iftitah', detected: 'kiyam', modelReady: true },
+    { steps: sabah, index: sabahNiyet, detected: 'kiyam', modelReady: true },
     idle30.duration,
   )
 ) {
@@ -232,58 +302,15 @@ if (
 }
 if (
   cameraIdleWouldAdvance(
-    { currentKind: 'secde2', nextKind: 'tahiyyat', detected: 'oturus', modelReady: true },
+    { steps: sabah, index: sabahSecde2, detected: 'oturus', modelReady: true },
     idle30.duration,
   )
 ) {
-  console.log('FAIL camera left secde2 on sit without seeing secde');
-  failed += 1;
-}
-if (
-  cameraIdleWouldAdvance(
-    { currentKind: 'kavme', nextKind: 'secde1', detected: 'kiyam', modelReady: true },
-    idle30.duration,
-  )
-) {
-  console.log('FAIL camera left kavme on standing after 30s');
+  console.log('FAIL camera left secde2 on sit without secde hold');
   failed += 1;
 }
 
-const poseChange = tickCameraAdvance({
-  currentKind: 'kiyam',
-  nextKind: 'ruku',
-  detected: 'ruku',
-  seenCurrentMs: 600,
-  matchingNextMs: CAMERA_HOLD_MS,
-  modelReady: true,
-});
-if (!poseChange.advance || poseChange.hint !== 'camera') {
-  console.log('FAIL camera should advance kiyam → ruku after hold');
-  failed += 1;
-}
-
-const secde2Done = tickCameraAdvance({
-  currentKind: 'secde2',
-  nextKind: 'tahiyyat',
-  detected: 'oturus',
-  seenCurrentMs: 600,
-  matchingNextMs: CAMERA_HOLD_MS,
-  modelReady: true,
-});
-if (!secde2Done.advance || !secde2Done.secde2Confirmed) {
-  console.log('FAIL camera should leave secde2 after confirmed secde then sit');
-  failed += 1;
-}
-
-const noModel = tickCameraAdvance({
-  currentKind: 'kiyam',
-  nextKind: 'ruku',
-  detected: 'ruku',
-  seenCurrentMs: 600,
-  matchingNextMs: CAMERA_HOLD_MS,
-  modelReady: false,
-});
-if (noModel.advance || noModel.hint !== 'manual') {
+if (tickSabah(sabahKiyam, 'ruku', CAMERA_HOLD_MS, false, false).advance) {
   console.log('FAIL without model camera must not auto-advance');
   failed += 1;
 }

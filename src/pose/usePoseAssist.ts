@@ -4,6 +4,7 @@ import type { PrayerStep } from '../types/prayer';
 import {
   cameraDebugLine,
   cameraStatusText,
+  expectedPoseForTransition,
   tickCameraAdvance,
   type AdvanceHint,
   type CameraTickResult,
@@ -11,7 +12,6 @@ import {
 import { classifyPose } from './classifyPose';
 import { createPoseLandmarker, type PoseLandmarkerHandle } from './mediapipe';
 import { cameraSupported, isWebRuntime } from './publicUrl';
-import { poseForStepKind } from './stepPose';
 import type { BodyPose, Framing } from './types';
 import { POSE_CUE_TR } from './types';
 
@@ -24,7 +24,7 @@ export type AssistStatus =
   | 'unsupported'
   | 'error';
 
-const COOLDOWN_MS = 500;
+const COOLDOWN_MS = 400;
 const FRAME_MS = 140;
 
 interface Options {
@@ -45,17 +45,18 @@ export interface PoseAssistState {
   debugLine: string;
   advanceHint: AdvanceHint;
   expectedPose: BodyPose | null;
+  passedFlash: boolean;
   attachPreview: (host: HTMLElement | null) => void;
 }
 
 const IDLE_TICK: CameraTickResult = {
   advance: false,
+  commitCurrent: false,
   hint: 'none',
-  seenCurrent: false,
   currentPose: 'unknown',
   expectedPose: null,
   waitingFor: null,
-  secde2Confirmed: false,
+  secde2Ready: false,
   samePose: false,
 };
 
@@ -65,6 +66,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
   const [framing, setFraming] = useState<Framing>('none');
   const [loadMessage, setLoadMessage] = useState<string | null>(null);
   const [tick, setTick] = useState<CameraTickResult>(IDLE_TICK);
+  const [passedLabel, setPassedLabel] = useState<string | null>(null);
 
   const onAdvanceRef = useRef(onAdvance);
   onAdvanceRef.current = onAdvance;
@@ -91,6 +93,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       setFraming('none');
       setLoadMessage(null);
       setTick(IDLE_TICK);
+      setPassedLabel(null);
       return;
     }
 
@@ -105,17 +108,17 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     let landmarker: PoseLandmarkerHandle | null = null;
     let raf = 0;
     let lastFrame = 0;
-    let lastTickAt = 0;
+    let lastTickAt = performance.now();
     let lastAdvance = 0;
     let gateStep = -1;
-    let seenCurrentMs = 0;
-    let matchingNextMs = 0;
-    let currentCommitted = false;
+    let holdExpectedMs = 0;
+    let currentConfirmed = false;
     let prevPose: BodyPose | undefined;
     let stablePose: BodyPose = 'unknown';
     let publishedPose: BodyPose = 'unknown';
     let stableCount = 0;
     let modelReady = false;
+    let passedTimer: ReturnType<typeof setTimeout> | undefined;
 
     const mountVideo = (video: HTMLVideoElement) => {
       videoRef.current = video;
@@ -135,44 +138,52 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       }
       if (gateStep !== idx) {
         gateStep = idx;
-        seenCurrentMs = 0;
-        matchingNextMs = 0;
-        currentCommitted = false;
+        holdExpectedMs = 0;
+        currentConfirmed = false;
       }
       if (now - lastAdvance < COOLDOWN_MS) {
         return;
       }
 
-      const dt = lastTickAt ? Math.min(now - lastTickAt, 250) : 0;
+      const dt = Math.min(Math.max(0, now - lastTickAt), 250);
       lastTickAt = now;
-      const nxt = list[idx + 1];
-      const from = poseForStepKind(here.kind);
-      const to = nxt ? poseForStepKind(nxt.kind) : null;
 
-      if (pose === from) {
-        seenCurrentMs += dt;
-        if (seenCurrentMs >= 400) {
-          currentCommitted = true;
-        }
-      }
-      if (to && pose === to) {
-        matchingNextMs += dt;
-      } else {
-        matchingNextMs = 0;
+      const expected = expectedPoseForTransition(list, idx, currentConfirmed);
+      if (expected && pose === expected) {
+        holdExpectedMs += dt;
+      } else if (pose !== 'unknown' && pose !== expected) {
+        holdExpectedMs = 0;
       }
 
       const result = tickCameraAdvance({
-        currentKind: here.kind,
-        nextKind: nxt?.kind,
+        steps: list,
+        index: idx,
         detected: pose,
-        seenCurrentMs: currentCommitted ? Math.max(seenCurrentMs, 400) : seenCurrentMs,
-        matchingNextMs,
+        holdExpectedMs,
+        currentConfirmed,
         modelReady,
       });
       setTick(result);
+
+      if (result.commitCurrent) {
+        currentConfirmed = true;
+        holdExpectedMs = 0;
+        return;
+      }
+
+      // Algı beklenen duruşu HOLD süresince tuttuysa Sonraki ile aynı ilerleme.
       if (result.advance) {
         lastAdvance = now;
-        matchingNextMs = 0;
+        holdExpectedMs = 0;
+        const nxt = list[idx + 1];
+        const label = nxt ? `Geçildi: ${nxt.title}` : 'Geçildi';
+        setPassedLabel(label);
+        clearTimeout(passedTimer);
+        passedTimer = setTimeout(() => {
+          if (!cancelled) {
+            setPassedLabel(null);
+          }
+        }, 1400);
         onAdvanceRef.current();
       }
     };
@@ -317,6 +328,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
+      clearTimeout(passedTimer);
       stream?.getTracks().forEach((track) => track.stop());
       landmarker?.close();
       if (videoRef.current) {
@@ -345,17 +357,20 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       bodyMissing: framing === 'none' && detected === 'unknown',
       detected,
       tick,
+      passedLabel,
     });
-  }, [enabled, status, loadMessage, framing, detected, tick]);
+  }, [enabled, status, loadMessage, framing, detected, tick, passedLabel]);
 
   const debugLine = useMemo(() => cameraDebugLine(detected, tick), [detected, tick]);
 
+  const cuePose = tick.waitingFor;
   const cue =
-    tick.waitingFor &&
-    tick.waitingFor !== 'unknown' &&
+    cuePose &&
+    cuePose !== 'unknown' &&
     enabled &&
-    status === 'running'
-      ? POSE_CUE_TR[tick.waitingFor]
+    status === 'running' &&
+    !passedLabel
+      ? POSE_CUE_TR[cuePose]
       : null;
 
   return {
@@ -369,6 +384,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     debugLine,
     advanceHint: tick.hint,
     expectedPose: tick.expectedPose,
+    passedFlash: Boolean(passedLabel),
     attachPreview,
   };
 }
