@@ -67,6 +67,9 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
   const [loadMessage, setLoadMessage] = useState<string | null>(null);
   const [tick, setTick] = useState<CameraTickResult>(IDLE_TICK);
   const [passedLabel, setPassedLabel] = useState<string | null>(null);
+  // Teşhis amaçlı: gerçek kamera akışının çözünürlüğü (yatay mı dikey mi geldiği
+  // önizleme kırpma hatalarını ayırt etmek için debug satırında gösterilir).
+  const [videoSize, setVideoSize] = useState<{ width: number; height: number } | null>(null);
 
   const onAdvanceRef = useRef(onAdvance);
   onAdvanceRef.current = onAdvance;
@@ -94,6 +97,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       setLoadMessage(null);
       setTick(IDLE_TICK);
       setPassedLabel(null);
+      setVideoSize(null);
       return;
     }
 
@@ -224,13 +228,21 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
         video.srcObject = stream;
         video.style.width = '100%';
         video.style.height = '100%';
-        video.style.objectFit = 'cover';
-        video.style.objectPosition = 'center top';
+        // 'cover' + 'center top' varsayımı: kaynak video YATAY (1280x720) olur.
+        // iOS Safari, telefon dikeyken ön kamerayı çoğu zaman DİKEY bir akış
+        // (ör. 720x1280) olarak döndürür. O durumda 'cover' videoyu container'a
+        // sığdırmak için YÜKSEKLİĞE göre ölçekler, video container'dan çok daha
+        // uzun kalır ve 'top' çapası ALT kısmı (genelde gövdenin olduğu yer)
+        // kırpıp yalnızca ÜST kısmı (başın üstü — tavan) gösterir. 'contain' ile
+        // hiçbir kırpma olmaz; kullanıcı kameranın GERÇEKTEN ne gördüğünü görür.
+        video.style.objectFit = 'contain';
+        video.style.objectPosition = 'center';
         video.style.transform = 'scaleX(-1)';
         video.style.borderRadius = '0';
         video.style.background = '#0C100E';
         await video.play();
         mountVideo(video);
+        setVideoSize({ width: video.videoWidth, height: video.videoHeight });
 
         try {
           landmarker = await createPoseLandmarker();
@@ -364,7 +376,10 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     });
   }, [enabled, status, loadMessage, framing, detected, tick, passedLabel]);
 
-  const debugLine = useMemo(() => cameraDebugLine(detected, tick), [detected, tick]);
+  const debugLine = useMemo(() => {
+    const base = cameraDebugLine(detected, tick);
+    return videoSize ? `${base} · cam: ${videoSize.width}x${videoSize.height}` : base;
+  }, [detected, tick, videoSize]);
 
   const cuePose = tick.waitingFor;
   const cue =
