@@ -1,0 +1,20 @@
+{
+  "name": "Namaz Rehberi",
+  "short_name": "Namaz",
+  "lang": "tr",
+  "description": "Hanefi farz ve vitir namaz rehberi",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0C100E",
+  "theme_color": "#0C100E",
+  "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
