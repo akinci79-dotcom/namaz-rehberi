@@ -1,4 +1,4 @@
-const CACHE = 'namaz-offline-v6';
+const CACHE = "namaz-offline-ef26915c42";
 const ASSETS = [
   ".",
   "./index.html",
@@ -21,6 +21,10 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
+  // skipWaiting: yeni sürüm, açık sekmeler kapanmasını beklemeden hemen devreye
+  // girsin. Aksi halde kullanıcı Safari'yi tamamen kapatmadan yeni dağıtımı
+  // (ör. bu kamera düzeltmesini) hiç göremez — önceki dağıtımlarda yaşanan sorun.
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).catch(() => undefined),
   );
@@ -28,9 +32,13 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))),
-    ),
+    Promise.all([
+      caches.keys().then((keys) =>
+        Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))),
+      ),
+      // clients.claim: zaten açık olan sekmeleri de hemen bu sürüme bağla.
+      self.clients.claim(),
+    ]),
   );
 });
 
