@@ -82,10 +82,22 @@ function writeServiceWorker(root) {
     .filter((path) => path !== './sw.js')
     .filter((path, index, all) => all.indexOf(path) === index);
 
-  const body = `const CACHE = 'namaz-offline-v6';
+  // Cache adı, JS bundle'ın kendi içerik hash'inden türetilir — her `export:web`
+  // farklı kod ürettiğinde otomatik değişir. Elle "v7", "v8" diye bir sayı
+  // bumplamayı UNUTMAK artık mümkün değil (önceki hata buydu: kod değişse bile
+  // CACHE adı sabit kalınca eski sekmeler günlerce eski sürümde takılı kalıyordu).
+  const bundleEntry = assets.find((path) => /\/js\/web\/index-[a-f0-9]+\.js$/.test(path));
+  const bundleHash = bundleEntry?.match(/index-([a-f0-9]+)\.js$/)?.[1]?.slice(0, 10) ?? 'dev';
+  const cacheName = `namaz-offline-${bundleHash}`;
+
+  const body = `const CACHE = ${JSON.stringify(cacheName)};
 const ASSETS = ${JSON.stringify(assets, null, 2)};
 
 self.addEventListener('install', (event) => {
+  // skipWaiting: yeni sürüm, açık sekmeler kapanmasını beklemeden hemen devreye
+  // girsin. Aksi halde kullanıcı Safari'yi tamamen kapatmadan yeni dağıtımı
+  // (ör. bu kamera düzeltmesini) hiç göremez — önceki dağıtımlarda yaşanan sorun.
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).catch(() => undefined),
   );
@@ -93,9 +105,13 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))),
-    ),
+    Promise.all([
+      caches.keys().then((keys) =>
+        Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))),
+      ),
+      // clients.claim: zaten açık olan sekmeleri de hemen bu sürüme bağla.
+      self.clients.claim(),
+    ]),
   );
 });
 
