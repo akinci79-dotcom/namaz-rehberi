@@ -60,14 +60,14 @@ Namaz ekranında **Kamera yardımcısı**nı açın. Ön kamera duruşu tanır (
 
 - **Kamera açıkken süre yok.** Adım yalnızca (1) beklenen duruş ~0,85 sn tutulunca — kıyamda rükû, secdede secde, rükûda önce rükû sonra kıyam — veya (2) Sonraki / Önceki. Geçişte “Geçildi: …” görünür. Sessiz saat yok.
 - **Kamerasız:** “Süre ile prova (kamerasız)” — eski süreyle ilerleme.
-- Canlı önizleme ekranın yaklaşık yarısı (ayna ön kamera); baş-omuz-bel kadrajı görünsün. Durum: “Bekleniyor: rükû”, “Algı: kıyam”, “2. secde görüldü — rekat sayılacak”. Saat sayacı yok.
+- Canlı önizleme ekranın yaklaşık yarısı (ayna ön kamera); **baştan dizlere kadar tüm gövde** kadrajda kalsın. Diz/ayak bileği görünmezse secde ile oturuş, kıyamdan güvenle ayırt edilemez — bu durumda “Dizler görünmüyor — telefonu geriye çekin” uyarısı çıkar. Durum: “Bekleniyor: rükû”, “Algı: kıyam”, “2. secde görüldü — rekat sayılacak”. Saat sayacı yok.
 - **Ses:** yalnızca adım **`secde2` → `kalkış` veya `tahiyyat`** (ilk/son oturuş) geçişinde, biten rekâtın sayısı bir kez (1 **bir**, 2 **iki**, 3 **üç**, 4 **dört**). Rükûdan kalkış (kavme), 1. secdeden celse, secdeye giriş veya duruş titremesi konuşturmaz. **Ses kapalı** düğmesi vardır.
 - İlk yüklemeden sonra kabuk + duruş modeli servis çalışanıyla önbelleğe alınır; namaz ortasında Wi‑Fi kopsa ekran boşalmamalıdır. Bitiş ekranı **Namaz bitti** yereldedir.
 - % sayacı yoktur; durum metni ne beklendiğini söyler (ör. “Şimdi rükûya eğilin”).
 - Görüntü **yalnızca cihazda** işlenir; kareler yüklenmez ve kaydedilmez.
 - Kamera için **HTTPS** gerekir; bu Pages adresi zaten HTTPS.
 - Safari’de ilk seferde kameraya izin verin. Reddedilirse Ayarlar → Safari → Kamera.
-- Telefonu/tableti **uzaklaştırın** — yalnızca yüz kadrajı duruşu bozar; baş-omuz-bel (mümkünse ayak) görünsün.
+- Telefonu/tableti **uzaklaştırın ve yere yakın bir yere yaslayın** — yalnızca yüz/omuz kadrajı secde ve oturuşu asla doğru algılamaz; baştan dizlere/ayaklara kadar tüm gövde görünsün.
 - Sonraki / Önceki her zaman yedektir.
 
 ## iPhone’da denemek (Expo Go, geliştirme)

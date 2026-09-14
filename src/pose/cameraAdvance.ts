@@ -127,6 +127,8 @@ export function tickCameraAdvance(input: CameraTickInput): CameraTickResult {
 export function cameraStatusText(input: {
   framingClose: boolean;
   bodyMissing: boolean;
+  /** Secde/oturuş bekleniyor ama diz/ayak bileği görünmüyor — bu duruşlar bacaksız ayırt edilemez. */
+  legsMissing: boolean;
   detected: BodyPose;
   tick: CameraTickResult;
   passedLabel: string | null;
@@ -139,6 +141,9 @@ export function cameraStatusText(input: {
   }
   if (input.framingClose) {
     return `Yüz çok yakın — gövde kadraja girsin. Algı: ${POSE_WAIT_TR[input.detected]}`;
+  }
+  if (input.legsMissing) {
+    return `Dizler görünmüyor — telefonu geriye çekin, tüm gövde girsin. Algı: ${POSE_WAIT_TR[input.detected]}`;
   }
 
   if (input.tick.secde2Ready) {

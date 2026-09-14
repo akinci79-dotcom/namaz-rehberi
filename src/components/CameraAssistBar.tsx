@@ -33,7 +33,7 @@ export function CameraAssistBar({ theme, enabled, onToggle, assist, previewHeigh
           <View style={styles.overlay} pointerEvents="box-none">
             <View style={styles.overlayTop}>
               <ToggleChip theme={theme} enabled={enabled} onToggle={onToggle} />
-              <Text style={styles.frameHint}>Baş · omuz · bel kadrajda olsun</Text>
+              <Text style={styles.frameHint}>Baş · gövde · dizler kadrajda olsun</Text>
             </View>
             <View
               style={[

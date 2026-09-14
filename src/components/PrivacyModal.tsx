@@ -20,10 +20,11 @@ export function PrivacyModal({ visible, theme, onAccept, onCancel }: Props) {
           <Text style={[styles.title, { color: theme.text }]}>Kamera gizliliği</Text>
           <Text style={[styles.body, { color: theme.textMuted }]}>{CAMERA_PRIVACY}</Text>
           <Text style={[styles.body, { color: theme.textMuted }]}>
-            HTTPS gerekir (bu sayfa zaten güvenli). Telefonu biraz uzakta tutun; baş-omuz-bel
-            görünsün. Kamera açıkken süreyle adım atılmaz: sonraki duruş görünür ve tutulursa
-            geçer, ya da Sonraki’ye basarsınız. Aynı duruştaki metinler (niyet → tekbir) için
-            Sonraki gerekir.
+            HTTPS gerekir (bu sayfa zaten güvenli). Telefonu yere yakın ve yeterince geride bir
+            yere yaslayın; ayakta dururken baştan dizlere kadar tüm gövde kadrajda kalsın. Dizler
+            görünmezse secde ve oturuş güvenle ayırt edilemez. Kamera açıkken süreyle adım
+            atılmaz: sonraki duruş görünür ve tutulursa geçer, ya da Sonraki’ye basarsınız. Aynı
+            duruştaki metinler (niyet → tekbir) için Sonraki gerekir.
           </Text>
           <View style={styles.row}>
             <Pressable

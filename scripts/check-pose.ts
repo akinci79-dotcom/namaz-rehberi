@@ -5,6 +5,7 @@ import type { PrayerStep } from '../src/types/prayer';
 import { getPrayerSteps, PRAYERS } from '../src/data';
 import {
   cameraIdleWouldAdvance,
+  cameraStatusText,
   CAMERA_HOLD_MS,
   expectedPoseForTransition,
   tickCameraAdvance,
@@ -90,6 +91,17 @@ function closeUp(): PoseLandmark[] {
   });
 }
 
+/** "Baş·omuz·bel" kadrajı: diz/ayak bileği YOK. Oturuş bu kadrajla kıyamdan ayrılamaz. */
+function upperBodyOnlySitting(): PoseLandmark[] {
+  return body({
+    0: [0.5, 0.28],
+    11: [0.38, 0.38],
+    12: [0.62, 0.38],
+    23: [0.44, 0.64],
+    24: [0.56, 0.64],
+  });
+}
+
 const cases: Array<[string, PoseLandmark[], string]> = [
   ['standing', standing(), 'kiyam'],
   ['ruku', ruku(), 'ruku'],
@@ -106,6 +118,50 @@ for (const [name, landmarks, expected] of cases) {
   if (!ok) {
     failed += 1;
   }
+}
+
+const IDLE_CAMERA_TICK = {
+  advance: false,
+  commitCurrent: false,
+  hint: 'none' as const,
+  currentPose: 'unknown' as const,
+  expectedPose: null,
+  waitingFor: null,
+  secde2Ready: false,
+  samePose: false,
+};
+
+// Bilinen sınırlama: diz/ayak bileği kadrajda yoksa oturuş kıyamdan ayrılamaz.
+// Bu durumda kullanıcı sessizce yanlış algı yerine "telefonu geriye çekin" uyarısı
+// görmeli (cameraStatusText → legsMissing). Regresyon olursa burada patlamalı.
+const partialGuess = classifyPose(upperBodyOnlySitting());
+if (partialGuess.framing !== 'partial') {
+  console.log(`FAIL upperBodyOnlySitting framing should be partial, got ${partialGuess.framing}`);
+  failed += 1;
+}
+const legsMissingText = cameraStatusText({
+  framingClose: false,
+  bodyMissing: false,
+  legsMissing: true,
+  detected: 'unknown',
+  tick: IDLE_CAMERA_TICK,
+  passedLabel: null,
+});
+if (!legsMissingText.includes('Dizler görünmüyor')) {
+  console.log(`FAIL legsMissing status text should warn about knees, got "${legsMissingText}"`);
+  failed += 1;
+}
+const legsOkText = cameraStatusText({
+  framingClose: false,
+  bodyMissing: false,
+  legsMissing: false,
+  detected: 'secde',
+  tick: IDLE_CAMERA_TICK,
+  passedLabel: null,
+});
+if (legsOkText.includes('Dizler görünmüyor')) {
+  console.log('FAIL legsMissing=false must not show knee warning');
+  failed += 1;
 }
 
 const niyet = { kind: 'niyet', sitting: undefined, rakah: 1 } as PrayerStep;

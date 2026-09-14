@@ -355,6 +355,9 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     return cameraStatusText({
       framingClose: framing === 'close',
       bodyMissing: framing === 'none' && detected === 'unknown',
+      // Diz/ayak bileği görünmezse secde ile oturuş, kıyamdan güvenle ayırt edilemez
+      // (bkz. classifyPose.ts). Kullanıcıyı susarak yanlış algılatmak yerine uyarıyoruz.
+      legsMissing: framing === 'partial' && (tick.waitingFor === 'secde' || tick.waitingFor === 'oturus'),
       detected,
       tick,
       passedLabel,

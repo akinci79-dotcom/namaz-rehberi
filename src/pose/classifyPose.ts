@@ -101,6 +101,12 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
 
   const lowerRef = ankle ?? knee;
   if (!lowerRef) {
+    // ÖNEMLİ SINIRLAMA: diz/ayak bileği görünmüyorsa secde ve oturuş, torso/omuz
+    // oranıyla kıyamdan güvenle ayırt edilemez — ayakta dururken de otururken de
+    // gövde-omuz oranı neredeyse aynıdır (yalnızca bacak açısı ayırt eder). Burada
+    // secde/oturuşu 0 bırakıp yalnızca kıyam/rükûyu tahmin ediyoruz; çağıran taraf
+    // (usePoseAssist → cameraStatusText: legsMissing) bunu sessizce yanlış
+    // sınıflandırmak yerine kullanıcıya "telefonu geriye çekin" diye söylemeli.
     const highTorso = clamp((torsoNorm - 0.35) / 0.55, 0, 1);
     const lowTorso = clamp((0.5 - torsoNorm) / 0.4, 0, 1);
     return pick(
