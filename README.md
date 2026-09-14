@@ -29,7 +29,7 @@ Ardından `dist/` içeriğini Pages sitesine kopyalayın.
 
 Namaz ekranında **Kamera yardımcısı**nı açın. Ön kamera duruşu tanır (kıyam, rükû, secde, oturuş).
 
-- **Kamera açıkken süre yok.** Adım yalnızca (1) sonraki duruş ~0,85 sn tutulunca veya (2) Sonraki / Önceki ile geçer. Aynı duruştaki metinler (niyet → tekbir → kıyam) için **Sonraki** gerekir.
+- **Kamera açıkken süre yok.** Adım yalnızca (1) beklenen duruş ~0,85 sn tutulunca — kıyamda rükû, secdede secde, rükûda önce rükû sonra kıyam — veya (2) Sonraki / Önceki. Geçişte “Geçildi: …” görünür. Sessiz saat yok.
 - **Kamerasız:** “Süre ile prova (kamerasız)” — eski süreyle ilerleme.
 - Canlı önizleme ekranın yaklaşık yarısı (ayna ön kamera); baş-omuz-bel kadrajı görünsün. Durum: “Bekleniyor: rükû”, “Algı: kıyam”, “2. secde görüldü — rekat sayılacak”. Saat sayacı yok.
 - **Ses:** yalnızca adım **`secde2` → `kalkış` veya `tahiyyat`** (ilk/son oturuş) geçişinde, biten rekâtın sayısı bir kez (1 **bir**, 2 **iki**, 3 **üç**, 4 **dört**). Rükûdan kalkış (kavme), 1. secdeden celse, secdeye giriş veya duruş titremesi konuşturmaz. **Ses kapalı** düğmesi vardır.
