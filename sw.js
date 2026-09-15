@@ -42,6 +42,10 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+function isShellRequest(request, url) {
+  return request.mode === 'navigate' || url.pathname.endsWith('/index.html') || url.pathname.endsWith('/404.html');
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') {
     return;
@@ -50,6 +54,28 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) {
     return;
   }
+
+  if (isShellRequest(event.request, url)) {
+    // ÖNEMLİ: index.html İÇİNDE hangi JS paketinin (içerik hash'i) yükleneceği
+    // yazılı. Bunu cache-first sunmak, ağ erişilebilir olsa bile kullanıcıyı
+    // yeni bir dağıtım gönderildikten SONRA da sonsuza dek eski kabukta (ve
+    // dolayısıyla eski koddaki hatalarla) takılı bırakabilir — gerçek kullanıcı
+    // testlerinde tam olarak bu şüphelenildi (art arda dağıtımlar hiçbir fark
+    // yaratmadı). Bu yüzden kabuk için ÖNCE AĞ, yalnızca çevrimdışıyken önbellek.
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(event.request, copy)).catch(() => undefined);
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached ?? caches.match('./index.html'))),
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) {
