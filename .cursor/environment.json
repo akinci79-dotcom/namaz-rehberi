@@ -1,0 +1,17 @@
+{
+  "name": "Namaz Rehberi (Expo)",
+  "install": "npm ci",
+  "ports": [
+    {
+      "name": "Expo web dev server",
+      "port": 8081
+    }
+  ],
+  "terminals": [
+    {
+      "name": "expo-web",
+      "command": "npx expo start --web --port 8081",
+      "description": "Expo web dev server (Metro bundler). Serves the app at http://localhost:8081/. Bundles on first request."
+    }
+  ]
+}
