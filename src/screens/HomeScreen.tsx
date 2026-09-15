@@ -7,7 +7,6 @@ import { DisclaimerCard } from '../components/DisclaimerCard';
 import { MadhabBadge } from '../components/MadhabBadge';
 import { PrayerCard } from '../components/PrayerCard';
 import { PRAYERS } from '../data';
-import { hasSessionLog } from '../pose/sessionLog';
 import type { Theme } from '../theme/colors';
 import type { PrayerId } from '../types/prayer';
 import { unlockSpeech } from '../voice/speech';
@@ -56,13 +55,13 @@ export function HomeScreen({ theme, onSelect }: Props) {
           “süre ile prova” vardır. Görüntü ve ses cihazda kalır.
         </Text>
 
-        {hasSessionLog() ? (
-          <Pressable onPress={() => setDiagnosticsOpen(true)} style={styles.diagLink}>
-            <Text style={[styles.diagLinkText, { color: theme.textMuted }]}>
-              Son kamera oturumu kaydını göster
-            </Text>
-          </Pressable>
-        ) : null}
+        {/* Kamera hiç çalıştırılmamışsa da her zaman görünür: "nerede bulacağım"
+            sorusu olmasın, boş kayıt uyarısını da modal içinde gösterir. */}
+        <Pressable onPress={() => setDiagnosticsOpen(true)} style={styles.diagLink}>
+          <Text style={[styles.diagLinkText, { color: theme.textMuted }]}>
+            Kamera oturumu kaydını göster (teşhis)
+          </Text>
+        </Pressable>
       </ScrollView>
 
       <DiagnosticsModal

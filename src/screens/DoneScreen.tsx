@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DiagnosticsModal } from '../components/DiagnosticsModal';
 import { getPrayer, getPrayerSteps, MADHAB_LABEL, rankLabel } from '../data';
-import { hasSessionLog } from '../pose/sessionLog';
 import type { Theme } from '../theme/colors';
 import type { PrayerId } from '../types/prayer';
 
@@ -67,13 +66,11 @@ export function DoneScreen({ theme, prayerId, onHome, onRepeat }: Props) {
           <Text style={[styles.btnText, { color: theme.text }]}>Ana sayfa</Text>
         </Pressable>
 
-        {hasSessionLog() ? (
-          <Pressable onPress={() => setDiagnosticsOpen(true)} style={styles.diagLink}>
-            <Text style={[styles.diagLinkText, { color: theme.textMuted }]}>
-              Kamera oturumu kaydını göster
-            </Text>
-          </Pressable>
-        ) : null}
+        <Pressable onPress={() => setDiagnosticsOpen(true)} style={styles.diagLink}>
+          <Text style={[styles.diagLinkText, { color: theme.textMuted }]}>
+            Kamera oturumu kaydını göster (teşhis)
+          </Text>
+        </Pressable>
       </View>
 
       <DiagnosticsModal
