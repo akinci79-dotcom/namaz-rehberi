@@ -13,6 +13,7 @@ import {
 import { classifyPose } from './classifyPose';
 import { createPoseLandmarker, type PoseLandmarkerHandle } from './mediapipe';
 import { cameraSupported, isWebRuntime } from './publicUrl';
+import { logSessionEvent, resetSessionLog } from './sessionLog';
 import type { BodyPose, Framing } from './types';
 import { POSE_CUE_TR } from './types';
 
@@ -117,6 +118,12 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       return;
     }
 
+    // Namaz sırasında telefona bakılamadığı için, kamera açılınca gerçekte ne
+    // olduğunu (adım/algı/çerçeve/ilerleme) sessizce kaydediyoruz. Namazdan
+    // sonra bu kayıt ekranda gösterilebilir (bkz. DiagnosticsModal).
+    resetSessionLog();
+    logSessionEvent('kamera başlatılıyor');
+
     let cancelled = false;
     let stream: MediaStream | null = null;
     let landmarker: PoseLandmarkerHandle | null = null;
@@ -152,17 +159,22 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
         };
         if (nav.wakeLock) {
           wakeLock = await nav.wakeLock.request('screen');
+          logSessionEvent('wake lock alındı');
           wakeLock.addEventListener?.('release', () => {
             wakeLock = null;
+            logSessionEvent('wake lock bırakıldı');
           });
+        } else {
+          logSessionEvent('wake lock desteklenmiyor');
         }
       } catch {
-        // Desteklenmiyor olabilir (ör. eski iOS Safari) — sessizce yoksay.
+        logSessionEvent('wake lock isteği başarısız');
       }
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') {
+        logSessionEvent('sekme/ekran gizlendi');
         return;
       }
       if (!wakeLock) {
@@ -173,6 +185,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       // kalır. Uyanır uyanmaz eski birikmiş süreyle + telefonu tutarken oluşan
       // gürültülü ilk karelerle yanlışlıkla "ilerledi" tetiklenmesin diye
       // her şeyi sıfırlıyoruz.
+      logSessionEvent('sekme/ekran tekrar görünür oldu (muhtemel uyku)');
       setWokeFromHidden(true);
       gateStep = -1;
       holdExpectedMs = 0;
@@ -207,6 +220,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
         gateStep = idx;
         holdExpectedMs = 0;
         currentConfirmed = false;
+        logSessionEvent(`adım değişti → #${idx} (${here.kind})`);
       }
       if (now - lastAdvance < COOLDOWN_MS) {
         return;
@@ -231,6 +245,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       if (result.commitCurrent) {
         currentConfirmed = true;
         holdExpectedMs = 0;
+        logSessionEvent(`rükû onaylandı (#${idx}), kıyam bekleniyor`);
         return;
       }
 
@@ -240,6 +255,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
         holdExpectedMs = 0;
         const nxt = list[idx + 1];
         const label = nxt ? `Geçildi: ${nxt.title}` : 'Geçildi';
+        logSessionEvent(`KAMERA İLERLETTİ #${idx} → #${idx + 1} (${nxt?.kind ?? '?'}), algı=${pose}`);
         setPassedLabel(label);
         clearTimeout(passedTimer);
         passedTimer = setTimeout(() => {
@@ -302,13 +318,18 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
         await video.play();
         mountVideo(video);
         setVideoSize({ width: video.videoWidth, height: video.videoHeight });
+        logSessionEvent(`video akışı hazır: ${video.videoWidth}x${video.videoHeight}`);
 
         try {
           landmarker = await createPoseLandmarker();
           modelReady = true;
-        } catch {
+          logSessionEvent('duruş modeli yüklendi');
+        } catch (modelError) {
           landmarker = null;
           modelReady = false;
+          logSessionEvent(
+            `duruş modeli YÜKLENEMEDİ: ${modelError instanceof Error ? modelError.message : String(modelError)}`,
+          );
           if (!cancelled) {
             setStatus('degraded');
             setLoadMessage('Duruş modeli yüklenemedi. Yalnızca Sonraki / Önceki.');
@@ -323,10 +344,13 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
         if (landmarker) {
           setStatus('running');
           setLoadMessage(null);
+          logSessionEvent('durum: running');
         }
 
         lastTickAt = performance.now();
         gateStep = stepIndexRef.current;
+        let loggedFraming: Framing | null = null;
+        let lastHeartbeatAt = performance.now();
 
         const loop = () => {
           if (cancelled) {
@@ -342,14 +366,22 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
               const points = result.landmarks?.[0];
               if (!points) {
                 setFraming((prev) => (prev === 'ok' ? 'partial' : 'none'));
+                if (publishedPose !== 'unknown') {
+                  logSessionEvent(`gövde kayboldu (adım #${stepIndexRef.current})`);
+                }
                 setDetected('unknown');
                 pose = 'unknown';
                 stableCount = 0;
                 stablePose = 'unknown';
+                publishedPose = 'unknown';
               } else {
                 const guess = classifyPose(points, prevPose);
                 prevPose = guess.pose;
                 setFraming(guess.framing);
+                if (guess.framing !== loggedFraming) {
+                  loggedFraming = guess.framing;
+                  logSessionEvent(`çerçeve=${guess.framing} (adım #${stepIndexRef.current})`);
+                }
                 if (guess.pose === stablePose) {
                   stableCount += 1;
                 } else {
@@ -357,6 +389,11 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
                   stablePose = guess.pose;
                 }
                 if (stableCount >= 3 || guess.pose === 'unknown') {
+                  if (guess.pose !== publishedPose) {
+                    logSessionEvent(
+                      `algı: ${publishedPose} → ${guess.pose} (adım #${stepIndexRef.current}, güven ${guess.confidence.toFixed(2)})`,
+                    );
+                  }
                   publishedPose = guess.pose;
                   setDetected(guess.pose);
                   pose = guess.pose;
@@ -371,6 +408,17 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
           }
 
           runGate(now, pose);
+
+          // Nabız: değişiklik olmasa bile döngünün canlı olduğunu ve o anki
+          // durumu kanıtlamak için düzenli aralıklarla kaydet. Sekme donarsa
+          // (rAF durursa) bu satırlar kesilir — teşhiste bunu görürüz.
+          if (now - lastHeartbeatAt > 4000) {
+            lastHeartbeatAt = now;
+            logSessionEvent(
+              `nabız: adım=#${stepIndexRef.current} algı=${pose} çerçeve=${loggedFraming ?? 'none'} hold=${Math.round(holdExpectedMs)}ms model=${modelReady}`,
+            );
+          }
+
           raf = requestAnimationFrame(loop);
         };
 
@@ -381,6 +429,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
         }
         const name = error instanceof Error ? error.name : '';
         const text = error instanceof Error ? error.message : '';
+        logSessionEvent(`HATA: ${name} ${text}`);
         if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
           setStatus('denied');
           setLoadMessage('Kamera izni verilmedi. Ayarlar → Safari → Kamera.');

@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DiagnosticsModal } from '../components/DiagnosticsModal';
 import { getPrayer, getPrayerSteps, MADHAB_LABEL, rankLabel } from '../data';
+import { hasSessionLog } from '../pose/sessionLog';
 import type { Theme } from '../theme/colors';
 import type { PrayerId } from '../types/prayer';
 
@@ -15,6 +18,7 @@ interface Props {
 export function DoneScreen({ theme, prayerId, onHome, onRepeat }: Props) {
   const prayer = getPrayer(prayerId);
   const steps = getPrayerSteps(prayerId);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
@@ -62,7 +66,21 @@ export function DoneScreen({ theme, prayerId, onHome, onRepeat }: Props) {
         >
           <Text style={[styles.btnText, { color: theme.text }]}>Ana sayfa</Text>
         </Pressable>
+
+        {hasSessionLog() ? (
+          <Pressable onPress={() => setDiagnosticsOpen(true)} style={styles.diagLink}>
+            <Text style={[styles.diagLinkText, { color: theme.textMuted }]}>
+              Kamera oturumu kaydını göster
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
+
+      <DiagnosticsModal
+        visible={diagnosticsOpen}
+        theme={theme}
+        onClose={() => setDiagnosticsOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -121,5 +139,13 @@ const styles = StyleSheet.create({
   btnText: {
     fontSize: 20,
     fontWeight: '800',
+  },
+  diagLink: {
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  diagLinkText: {
+    fontSize: 13,
+    textDecorationLine: 'underline',
   },
 });

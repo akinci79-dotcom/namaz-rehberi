@@ -1,10 +1,13 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DiagnosticsModal } from '../components/DiagnosticsModal';
 import { DisclaimerCard } from '../components/DisclaimerCard';
 import { MadhabBadge } from '../components/MadhabBadge';
 import { PrayerCard } from '../components/PrayerCard';
 import { PRAYERS } from '../data';
+import { hasSessionLog } from '../pose/sessionLog';
 import type { Theme } from '../theme/colors';
 import type { PrayerId } from '../types/prayer';
 import { unlockSpeech } from '../voice/speech';
@@ -15,6 +18,7 @@ interface Props {
 }
 
 export function HomeScreen({ theme, onSelect }: Props) {
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
       <ScrollView
@@ -51,7 +55,21 @@ export function HomeScreen({ theme, onSelect }: Props) {
           der. Kamera açıkken süreyle ilerlemez; rükû/secde görünce geçer. Kamerasız
           “süre ile prova” vardır. Görüntü ve ses cihazda kalır.
         </Text>
+
+        {hasSessionLog() ? (
+          <Pressable onPress={() => setDiagnosticsOpen(true)} style={styles.diagLink}>
+            <Text style={[styles.diagLinkText, { color: theme.textMuted }]}>
+              Son kamera oturumu kaydını göster
+            </Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
+
+      <DiagnosticsModal
+        visible={diagnosticsOpen}
+        theme={theme}
+        onClose={() => setDiagnosticsOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -89,5 +107,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     paddingHorizontal: 4,
+  },
+  diagLink: {
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+  },
+  diagLinkText: {
+    fontSize: 13,
+    textDecorationLine: 'underline',
   },
 });
