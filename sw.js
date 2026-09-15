@@ -1,10 +1,10 @@
-const CACHE = "namaz-offline-9b6350304c";
+const CACHE = "namaz-offline-3391bf7272";
 const ASSETS = [
   ".",
   "./index.html",
   "./404.html",
   "./.nojekyll",
-  "./_expo/static/js/web/index-9b6350304c98d961c18f25b467c573cf.js",
+  "./_expo/static/js/web/index-3391bf7272d3b5421e785a13fc54d18a.js",
   "./apple-touch-icon.png",
   "./favicon.ico",
   "./manifest.webmanifest",
