@@ -64,6 +64,46 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
 
   const hasShoulders = visible(shoulderL, 0.18) && visible(shoulderR, 0.18);
   if (!hasShoulders) {
+    // GERÇEK KULLANICI TESTİNDE BULUNAN KRİTİK DURUM: rükûda gövde kameraya
+    // doğru/ondan uzağa öne eğilir (derinlik eksenine yakın döner) — bu açıdan
+    // MediaPipe omuzları güvenle konumlandıramaz ve görünürlük skoru eşiğin
+    // altında kalabilir. Video kayıtlı testte tam olarak bu oldu: kullanıcı net
+    // biçimde rükûdayken "Algı: yok" görüldü, çünkü omuz yokluğu tüm diğer
+    // (kalça/diz/ayak bileği) veriyi de atıp fonksiyonu erken sonlandırıyordu —
+    // tıpkı daha önce düzeltilen "burun zorunlu" hatasının omuzdaki ikizi.
+    //
+    // Rükûda bacaklar dik kalır (yalnızca kalçadan öne bükülme olur): kalça hâlâ
+    // "ayaktaki" yüksekliğinde, dize/ayak bileğine olan dikey mesafe uzun kalır.
+    // Omuz görünmüyorsa bu bacak imzasından rükûyu tahmin ediyoruz. Kalça da
+    // görünmüyorsa (ör. gerçekten kadraj dışı) ya da bacaklar kısaysa (secde/
+    // oturuş — ikisi omuzsuz güvenle ayrılamaz, aradaki farkı gövde açısı verir)
+    // yine boş dönüyoruz.
+    const hasHipsOnly = visible(hipL, 0.16) && visible(hipR, 0.16);
+    if (hasHipsOnly) {
+      const hipOnly = mid(hipL, hipR);
+      const kneeL2 = landmarks[L_KNEE];
+      const kneeR2 = landmarks[R_KNEE];
+      const ankleL2 = landmarks[L_ANKLE];
+      const ankleR2 = landmarks[R_ANKLE];
+      const knee2 =
+        visible(kneeL2, 0.14) && visible(kneeR2, 0.14) ? mid(kneeL2, kneeR2) : undefined;
+      const ankle2 =
+        visible(ankleL2, 0.12) && visible(ankleR2, 0.12) ? mid(ankleL2, ankleR2) : undefined;
+      const lowerRef2 = ankle2 ?? knee2;
+      if (lowerRef2) {
+        const hipScale = Math.max(Math.abs(hipR.x - hipL.x), 0.08);
+        const legNorm2 = (lowerRef2.y - hipOnly.y) / hipScale;
+        const legsStanding = clamp((legNorm2 - 0.9) / 0.6, 0, 1);
+        if (legsStanding > 0.25) {
+          return pick(
+            { kiyam: 0, ruku: legsStanding, secde: 0, oturus: 0 },
+            previous,
+            0.22,
+            'ok',
+          );
+        }
+      }
+    }
     return empty(hasNose && nose.y < 0.55 ? 'close' : 'none');
   }
 

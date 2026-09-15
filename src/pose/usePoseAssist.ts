@@ -390,8 +390,16 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
                 }
                 if (stableCount >= 3 || guess.pose === 'unknown') {
                   if (guess.pose !== publishedPose) {
+                    // "yok" (unknown) durumuna düşünce HANGİ eklemin görünmediğini
+                    // (omuz/kalça/diz/ayak bileği güven skoru) de kaydediyoruz —
+                    // rükû gibi kameraya öne eğilen duruşlarda hangi görünürlük
+                    // eşiğinin tetiklendiğini gerçek veriyle görebilmek için.
+                    const visInfo =
+                      guess.pose === 'unknown'
+                        ? ` [omuz ${(points[11]?.visibility ?? 0).toFixed(2)}/${(points[12]?.visibility ?? 0).toFixed(2)} kalça ${(points[23]?.visibility ?? 0).toFixed(2)}/${(points[24]?.visibility ?? 0).toFixed(2)} diz ${(points[25]?.visibility ?? 0).toFixed(2)}/${(points[26]?.visibility ?? 0).toFixed(2)} ayak ${(points[27]?.visibility ?? 0).toFixed(2)}/${(points[28]?.visibility ?? 0).toFixed(2)}]`
+                        : '';
                     logSessionEvent(
-                      `algı: ${publishedPose} → ${guess.pose} (adım #${stepIndexRef.current}, güven ${guess.confidence.toFixed(2)})`,
+                      `algı: ${publishedPose} → ${guess.pose} (adım #${stepIndexRef.current}, güven ${guess.confidence.toFixed(2)})${visInfo}`,
                     );
                   }
                   publishedPose = guess.pose;

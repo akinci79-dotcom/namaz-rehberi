@@ -116,6 +116,18 @@ function rukuNoNose(): PoseLandmark[] {
   return points;
 }
 
+/** Gerçek kullanıcı testinde bulunan kritik durum: rükûda gövde kameraya doğru/
+ * ondan uzağa öne eğilir (derinlik eksenine yakın döner) — MediaPipe omuzları
+ * güvenle konumlandıramayabilir ve görünürlük eşiğinin altında kalabilir.
+ * Bacaklar rükûda dik kaldığı için (yalnızca kalçadan bükülme), omuz görünmese
+ * de kalça+bacak oranından rükû tahmin edilebilmeli. */
+function rukuNoShoulders(): PoseLandmark[] {
+  const points = ruku();
+  points[11] = { ...points[11], visibility: 0 };
+  points[12] = { ...points[12], visibility: 0 };
+  return points;
+}
+
 const cases: Array<[string, PoseLandmark[], string]> = [
   ['standing', standing(), 'kiyam'],
   ['ruku', ruku(), 'ruku'],
@@ -189,6 +201,17 @@ if (secdeNoNoseGuess.pose !== 'secde') {
 const rukuNoNoseGuess = classifyPose(rukuNoNose());
 if (rukuNoNoseGuess.pose !== 'ruku') {
   console.log(`FAIL ruku without visible nose should still classify as ruku, got ${rukuNoNoseGuess.pose}`);
+  failed += 1;
+}
+
+// Regresyon: gerçek video testinde bulunan asıl hata — rükûda omuz görünmese de
+// (öne eğilme kameraya doğru/uzağa olduğu için) bacaklar hâlâ dik ise rükû
+// algılanmalı. Eskiden omuz yokluğu tüm veriyi atıp "unknown" döndürüyordu.
+const rukuNoShouldersGuess = classifyPose(rukuNoShoulders());
+if (rukuNoShouldersGuess.pose !== 'ruku') {
+  console.log(
+    `FAIL ruku without visible shoulders should still classify as ruku via leg signal, got ${rukuNoShouldersGuess.pose}`,
+  );
   failed += 1;
 }
 

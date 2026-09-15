@@ -68,6 +68,7 @@ Namaz ekranında **Kamera yardımcısı**nı açın. Ön kamera duruşu tanır (
 - Kamera için **HTTPS** gerekir; bu Pages adresi zaten HTTPS.
 - Safari’de ilk seferde kameraya izin verin. Reddedilirse Ayarlar → Safari → Kamera.
 - Telefonu/tableti **uzaklaştırın ve yere yakın bir yere yaslayın** — yalnızca yüz/omuz kadrajı secde ve oturuşu asla doğru algılamaz; baştan dizlere/ayaklara kadar tüm gövde görünsün.
+- Telefonu **tam karşınıza değil hafif yandan (~30-45°)** yerleştirin. Namaz sırasında ekrana zaten bakılmıyor; tam cepheden bakan bir kamerada rükûdaki öne eğilme, gövdeyi kameraya doğru/ondan uzağa döndürdüğü için poz modeli tarafından güvenle görülemeyebilir. Hafif açı bu eğilmeyi yandan gösterir ve rükû tespitini belirgin şekilde güçlendirir.
 - Sonraki / Önceki her zaman yedektir.
 
 ## iPhone’da denemek (Expo Go, geliştirme)

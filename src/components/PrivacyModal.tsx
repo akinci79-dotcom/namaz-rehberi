@@ -22,7 +22,9 @@ export function PrivacyModal({ visible, theme, onAccept, onCancel }: Props) {
           <Text style={[styles.body, { color: theme.textMuted }]}>
             HTTPS gerekir (bu sayfa zaten güvenli). Telefonu yere yakın ve yeterince geride bir
             yere yaslayın; ayakta dururken baştan dizlere kadar tüm gövde kadrajda kalsın. Dizler
-            görünmezse secde ve oturuş güvenle ayırt edilemez. Kamera açıkken süreyle adım
+            görünmezse secde ve oturuş güvenle ayırt edilemez. Namaz sırasında ekrana bakmadığınız
+            için telefonu tam karşınıza değil, hafif yandan (yaklaşık 30-45 derece açıyla) yerleştirin
+            — rükûdaki öne eğilme bu açıdan çok daha net görülür. Kamera açıkken süreyle adım
             atılmaz: sonraki duruş görünür ve tutulursa geçer, ya da Sonraki’ye basarsınız. Aynı
             duruştaki metinler (niyet → tekbir) için Sonraki gerekir.
           </Text>
