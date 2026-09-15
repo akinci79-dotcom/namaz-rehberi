@@ -27,7 +27,14 @@ export type AssistStatus =
   | 'error';
 
 const COOLDOWN_MS = 400;
-const FRAME_MS = 140;
+// ÖNEMLİ: kullanıcı gerçek namazda "kaplumbağa gibi çok yavaş hareket etmek
+// gerekiyor, hızlı hareket edince algılamıyor" diye bildirdi. Zincir şöyleydi:
+// her 140ms'de bir kare işleniyor → 3 ardışık kare aynı pozu göstermeden algı
+// bile yayınlanmıyordu (~420ms) → sonra CAMERA_HOLD_MS kadar KESİNTİSİZ aynı
+// poz gerekiyordu. Gerçek harekette ufak titremeler bu süreyi daha da
+// uzatıyordu. Kareyi daha sık işleyip (110ms) ve algı yayınlama eşiğini 2
+// ardışık kareye indirerek toplam tepki süresini kısaltıyoruz.
+const FRAME_MS = 110;
 
 interface Options {
   enabled: boolean;
@@ -388,7 +395,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
                   stableCount = 1;
                   stablePose = guess.pose;
                 }
-                if (stableCount >= 3 || guess.pose === 'unknown') {
+                if (stableCount >= 2 || guess.pose === 'unknown') {
                   if (guess.pose !== publishedPose) {
                     // "yok" (unknown) durumuna düşünce HANGİ eklemin görünmediğini
                     // (omuz/kalça/diz/ayak bileği güven skoru) de kaydediyoruz —

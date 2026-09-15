@@ -4,8 +4,15 @@ import { poseForStepKind } from './stepPose';
 import type { BodyPose } from './types';
 import { POSE_WAIT_TR } from './types';
 
+// ÖNEMLİ: kullanıcı gerçek namazda "kaplumbağa gibi çok yavaş hareket etmek
+// gerekiyor, hızlı hareket edince algılamıyor" diye bildirdi. 850ms + 3 karelik
+// yayın gecikmesi (~420ms) + gerçek harekette kaçınılmaz ufak titremeler
+// toplamda namazın doğal temposundan belirgin şekilde daha yavaş bir duruş
+// gerektiriyordu. Rükû/secde gibi rükünler zaten birkaç saniye (tesbih süresi)
+// tutulduğu için süreyi kısaltmak yanlış pozitif riskini önemli ölçüde
+// artırmaz, ama gerçek tempoda hareket edince de algılanmasını sağlar.
 /** Algı = beklenen duruş bu kadar tutulunca Sonraki ile aynı ilerleme. Saat yok. */
-export const CAMERA_HOLD_MS = 850;
+export const CAMERA_HOLD_MS = 550;
 
 export type AdvanceHint = 'camera' | 'manual' | 'none';
 
@@ -93,7 +100,14 @@ export function accumulateHold(
   if (detected === 'unknown' || !expected) {
     return holdMs;
   }
-  return Math.max(0, holdMs - dt * 2);
+  // Gerçek namaz kayıtlarında, doğru duruş sürdürülürken bile ara sıra yanlış/
+  // gürültülü kareler görülüyordu (ör. rükûda anlık "secde" sıçraması). Eski
+  // 2x ceza (dt*2) bu tür kısa gürültüyü net biriktirmeyi çok yavaşlatıyor,
+  // kullanıcının "çok yavaş hareket etmesi gerekiyor" hissine katkıda
+  // bulunuyordu. Cezayı 1.3x'e indirdik: hâlâ sürekli yanlış pozdan (gerçekten
+  // farklı bir duruşa geçildiğinde) hızla çıkar, ama izole gürültüyü tolere
+  // etmek daha kolay.
+  return Math.max(0, holdMs - dt * 1.3);
 }
 
 /**
