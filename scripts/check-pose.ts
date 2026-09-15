@@ -128,6 +128,20 @@ function rukuNoShoulders(): PoseLandmark[] {
   return points;
 }
 
+/** Gerçek namaz oturumu kaydında bulunan kritik durum: rükûda omuz/kalça hep
+ * ~1.00 güvenle kalırken ayak bileği güveni sık sık 0.2-0.5'e düşüyordu (diz
+ * ise 0.5-0.9 bandında daha güvenilir kalıyordu). Düşük güvendeki ayak bileği
+ * konumu güvenilmemeli, dize düşülmeli — aksi halde bacaklar "kısaymış"
+ * (oturuyormuş) gibi ölçülüp gerçek rükû oturuş/yok olarak algılanıyordu. */
+function rukuLowAnkleConfidence(): PoseLandmark[] {
+  const points = ruku();
+  points[27] = { ...points[27], visibility: 0.4 };
+  points[28] = { ...points[28], visibility: 0.45 };
+  points[25] = { ...points[25], visibility: 0.7 };
+  points[26] = { ...points[26], visibility: 0.75 };
+  return points;
+}
+
 const cases: Array<[string, PoseLandmark[], string]> = [
   ['standing', standing(), 'kiyam'],
   ['ruku', ruku(), 'ruku'],
@@ -211,6 +225,18 @@ const rukuNoShouldersGuess = classifyPose(rukuNoShoulders());
 if (rukuNoShouldersGuess.pose !== 'ruku') {
   console.log(
     `FAIL ruku without visible shoulders should still classify as ruku via leg signal, got ${rukuNoShouldersGuess.pose}`,
+  );
+  failed += 1;
+}
+
+// Regresyon: gerçek namaz oturumu kaydında bulunan asıl hata — rükûda ayak
+// bileği güveni düşünce (gürültülü/kaymış konum), gerçek rükû "oturuş" ya da
+// "yok" olarak algılanıyordu. Diz daha güvenilirken ona düşülmeli ve rükû
+// hâlâ doğru algılanmalı.
+const rukuLowAnkleGuess = classifyPose(rukuLowAnkleConfidence());
+if (rukuLowAnkleGuess.pose !== 'ruku') {
+  console.log(
+    `FAIL ruku with low-confidence ankle (noisy) should fall back to knee and still classify as ruku, got ${rukuLowAnkleGuess.pose}`,
   );
   failed += 1;
 }

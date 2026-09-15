@@ -135,10 +135,19 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
   const kneeR = landmarks[R_KNEE];
   const ankleL = landmarks[L_ANKLE];
   const ankleR = landmarks[R_ANKLE];
+  // GERÇEK NAMAZ OTURUMU KAYDINDA BULUNAN KRİTİK DURUM: rükûda omuz/kalça hep
+  // ~1.00 güvenle kalırken, ayak bileği güveni sık sık 0.2-0.5 bandına düşüyordu
+  // (diz ise aynı anlarda 0.5-0.9 bandında, belirgin şekilde daha güvenilirdi).
+  // Eski eşik (0.12) bu düşük güvendeki ayak bileğini yine de "görünür" sayıp
+  // konumunu kullanıyordu — ama bu düşük güvendeki KONUM tahmini kaymış/gürültülü
+  // olabiliyor ve bacaklar sanki kısalmış (oturuyormuş) gibi ölçülüp gerçek rükû
+  // "oturuş" ya da "yok" olarak algılanıyordu (asıl rapor edilen hata). Ayak
+  // bileğini yalnızca GERÇEKTEN güvenilir olduğunda kullanıyoruz; değilse zaten
+  // var olan `ankle ?? knee` yedeği devreye girip dize düşüyor.
   const knee =
-    visible(kneeL, 0.14) && visible(kneeR, 0.14) ? mid(kneeL, kneeR) : undefined;
+    visible(kneeL, 0.25) && visible(kneeR, 0.25) ? mid(kneeL, kneeR) : undefined;
   const ankle =
-    visible(ankleL, 0.12) && visible(ankleR, 0.12) ? mid(ankleL, ankleR) : undefined;
+    visible(ankleL, 0.55) && visible(ankleR, 0.55) ? mid(ankleL, ankleR) : undefined;
 
   const scale = Math.max(shoulderWidth, 0.1);
   const torsoNorm = (hip.y - shoulder.y) / scale;
@@ -147,6 +156,14 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
   const framing: Framing = tooClose ? 'close' : ankle || knee ? 'ok' : 'partial';
 
   const lowerRef = ankle ?? knee;
+  // Diz, kalçaya ayak bileğinden çok daha yakındır (~ayak bileği-kalça
+  // mesafesinin yarısı) — ayak bileği güvenilmeyip dize düşüldüğünde, aşağıdaki
+  // legNorm eşiklerinin (0.95/1.05) hâlâ anlamlı kalması için tipik vücut
+  // oranına göre ölçeği telafi ediyoruz. Aksi halde dize düşülen her kare
+  // (ayak bileği güvensizken) bacaklar gerçekte dik olsa bile "kısa/bükülü"
+  // (oturuş/secde) gibi ölçülür.
+  const usingKneeOnly = !ankle && !!knee;
+  const legScaleCompensation = usingKneeOnly ? 1.9 : 1;
   if (!lowerRef) {
     // ÖNEMLİ SINIRLAMA: diz/ayak bileği görünmüyorsa secde ve oturuş, torso/omuz
     // oranıyla kıyamdan güvenle ayırt edilemez — ayakta dururken de otururken de
@@ -169,7 +186,7 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
     );
   }
 
-  const legNorm = (lowerRef.y - hip.y) / scale;
+  const legNorm = ((lowerRef.y - hip.y) / scale) * legScaleCompensation;
   const highTorso = clamp((torsoNorm - 0.38) / 0.5, 0, 1);
   const lowTorso = clamp((0.52 - torsoNorm) / 0.4, 0, 1);
   const highLeg = clamp((legNorm - 0.95) / 0.55, 0, 1);
