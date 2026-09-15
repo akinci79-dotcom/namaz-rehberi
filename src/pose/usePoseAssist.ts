@@ -47,6 +47,10 @@ export interface PoseAssistState {
   advanceHint: AdvanceHint;
   expectedPose: BodyPose | null;
   passedFlash: boolean;
+  /** Namaz sırasında ekrana bakılamadığı için sesli uyarı gerektiren çerçeveleme sorunları. */
+  bodyMissing: boolean;
+  framingClose: boolean;
+  legsMissing: boolean;
   attachPreview: (host: HTMLElement | null) => void;
 }
 
@@ -408,6 +412,12 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     };
   }, [enabled]);
 
+  const bodyMissingFlag = framing === 'none' && detected === 'unknown';
+  const framingCloseFlag = framing === 'close';
+  // Diz/ayak bileği görünmezse secde ile oturuş, kıyamdan güvenle ayırt edilemez
+  // (bkz. classifyPose.ts). Kullanıcıyı susarak yanlış algılatmak yerine uyarıyoruz.
+  const legsMissingFlag = framing === 'partial' && (tick.waitingFor === 'secde' || tick.waitingFor === 'oturus');
+
   const statusText = useMemo(() => {
     if (!enabled) {
       return 'Kapalı — duruşla ilerleme yok';
@@ -422,16 +432,14 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       return loadMessage;
     }
     return cameraStatusText({
-      framingClose: framing === 'close',
-      bodyMissing: framing === 'none' && detected === 'unknown',
-      // Diz/ayak bileği görünmezse secde ile oturuş, kıyamdan güvenle ayırt edilemez
-      // (bkz. classifyPose.ts). Kullanıcıyı susarak yanlış algılatmak yerine uyarıyoruz.
-      legsMissing: framing === 'partial' && (tick.waitingFor === 'secde' || tick.waitingFor === 'oturus'),
+      framingClose: framingCloseFlag,
+      bodyMissing: bodyMissingFlag,
+      legsMissing: legsMissingFlag,
       detected,
       tick,
       passedLabel,
     });
-  }, [enabled, status, loadMessage, framing, detected, tick, passedLabel]);
+  }, [enabled, status, loadMessage, framingCloseFlag, bodyMissingFlag, legsMissingFlag, detected, tick, passedLabel]);
 
   const debugLine = useMemo(() => {
     let line = cameraDebugLine(detected, tick);
@@ -468,6 +476,9 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     advanceHint: tick.hint,
     expectedPose: tick.expectedPose,
     passedFlash: Boolean(passedLabel),
+    bodyMissing: enabled && status === 'running' && bodyMissingFlag,
+    framingClose: enabled && status === 'running' && framingCloseFlag,
+    legsMissing: enabled && status === 'running' && legsMissingFlag,
     attachPreview,
   };
 }

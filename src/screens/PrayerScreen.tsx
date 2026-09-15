@@ -16,6 +16,7 @@ import { StepProgress } from '../components/StepProgress';
 import { VoiceToggle } from '../components/VoiceToggle';
 import { getNextTitle, getPrayer, getPrayerSteps, MADHAB_LABEL, rankLabel } from '../data';
 import { usePoseAssist } from '../pose/usePoseAssist';
+import { usePoseVoiceCues } from '../pose/usePoseVoiceCues';
 import { usePracticeTimer } from '../pose/usePracticeTimer';
 import type { Theme } from '../theme/colors';
 import type { PrayerId, SittingKind } from '../types/prayer';
@@ -106,6 +107,7 @@ export function PrayerScreen({
   });
 
   usePrayerVoice(prayerId, steps, stepIndex, !voiceMuted);
+  usePoseVoiceCues(cameraOn && !voiceMuted, assist, step?.kind);
 
   const requestCamera = () => {
     if (cameraOn) {
