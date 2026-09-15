@@ -107,7 +107,7 @@ export function PrayerScreen({
   });
 
   usePrayerVoice(prayerId, steps, stepIndex, !voiceMuted);
-  usePoseVoiceCues(cameraOn && !voiceMuted, assist, step?.kind);
+  usePoseVoiceCues(cameraOn && !voiceMuted, assist);
 
   const requestCamera = () => {
     if (cameraOn) {

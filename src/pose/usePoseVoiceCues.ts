@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-import type { StepKind } from '../types/prayer';
 import { speakCue } from '../voice/speech';
-import { requireSeenPoseBeforeAdvance } from './stepPose';
 import type { PoseAssistState } from './usePoseAssist';
 
 const FRAMING_REPEAT_MS = 15000;
@@ -18,19 +16,17 @@ const FRAMING_MESSAGE: Record<FramingKind, string> = {
 };
 
 /**
- * Namaz sırasında telefona bakılamaz. Kameranın "Şimdi rükûya eğilin",
- * "Dizler görünmüyor, telefonu geriye çekin" gibi TÜM geri bildirimi eskiden
- * yalnızca ekranda metin olarak vardı (assist.cue / statusText) — hiç
- * söylenmiyordu. Kullanıcı bunu göremediği için kamera "sessizce" çalışmıyor
- * gibi görünüyordu; aslında çoğu zaman durumu biliyordu, sadece söylemiyordu.
- * Bu hook aynı ipuçlarını sesli de veriyor.
+ * ÖNEMLİ TASARIM KURALI: namaz sırasında ses SADECE 2. secdeden sonra biten
+ * rekâtın sayısını söylemeli (bkz. usePrayerVoice) — kullanıcının asıl isteği
+ * budur, başka hiçbir sesli yönlendirme istenmemiştir. Bu hook bir ara
+ * denemede "şimdi rükûya eğilin", "şimdi oturun" gibi her poz geçişini de
+ * sesli okuyordu; gerçek namaz testinde bu YANLIŞ/GEREKSİZ ve RAHATSIZ EDİCİ
+ * bulundu (adımlar hızlı aktığında art arda anlamsız komutlar okunuyordu).
+ * O kısım tamamen kaldırıldı. Yalnızca gerçekten kritik, namazı imkansız
+ * kılacak durumlar sesli kalıyor: kamera/model çalışmıyor ya da çerçeveleme
+ * o kadar bozuk ki (vücut yok / çok yakın / dizler yok) algı hiç çalışamaz.
  */
-export function usePoseVoiceCues(
-  enabled: boolean,
-  assist: PoseAssistState,
-  currentStepKind: StepKind | undefined,
-): void {
-  const lastCue = useRef<string | null>(null);
+export function usePoseVoiceCues(enabled: boolean, assist: PoseAssistState): void {
   const activeFramingKind = useRef<FramingKind | null>(null);
   const lastFramingWarnAt = useRef(0);
   const framingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -60,7 +56,6 @@ export function usePoseVoiceCues(
 
   useEffect(() => {
     if (!enabled || assist.status !== 'running') {
-      lastCue.current = null;
       activeFramingKind.current = null;
       clearTimeout(framingTimer.current);
       return;
@@ -77,23 +72,8 @@ export function usePoseVoiceCues(
     if (!framingKind) {
       activeFramingKind.current = null;
       clearTimeout(framingTimer.current);
-      // "kıyam" gibi çok adımlı/uzun duruşlarda cue, adımın en başından beri
-      // ileriye bakıp "şimdi rükûya eğilin" diyebilir — bu adım henüz kıraat
-      // aşamasındayken YANLIŞ ve KAFA KARIŞTIRICI olur. Sadece gerçekten anlık
-      // bir geçiş beklenen adımlarda (rükû, secde1/2, celse) sesli okuyoruz.
-      const immediate = currentStepKind ? requireSeenPoseBeforeAdvance(currentStepKind) : false;
-      if (immediate && assist.cue && assist.cue !== lastCue.current) {
-        lastCue.current = assist.cue;
-        speakCue(assist.cue);
-      } else if (!assist.cue || !immediate) {
-        lastCue.current = null;
-      }
       return;
     }
-
-    // Çerçeveleme sorunu varken poz ipucu anlamsız (zaten yanlış kadraj) — bir
-    // sonraki doğru çerçevelemede aynı pozu tekrar duyurabilmek için sıfırla.
-    lastCue.current = null;
 
     if (framingKind !== activeFramingKind.current) {
       activeFramingKind.current = framingKind;
@@ -111,15 +91,7 @@ export function usePoseVoiceCues(
       lastFramingWarnAt.current = now;
       speakCue(FRAMING_MESSAGE[framingKind]);
     }
-  }, [
-    enabled,
-    assist.status,
-    assist.cue,
-    assist.bodyMissing,
-    assist.framingClose,
-    assist.legsMissing,
-    currentStepKind,
-  ]);
+  }, [enabled, assist.status, assist.bodyMissing, assist.framingClose, assist.legsMissing]);
 
   useEffect(() => {
     return () => clearTimeout(framingTimer.current);
