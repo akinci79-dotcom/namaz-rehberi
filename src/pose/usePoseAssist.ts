@@ -71,6 +71,10 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
   // Teşhis amaçlı: gerçek kamera akışının çözünürlüğü (yatay mı dikey mi geldiği
   // önizleme kırpma hatalarını ayırt etmek için debug satırında gösterilir).
   const [videoSize, setVideoSize] = useState<{ width: number; height: number } | null>(null);
+  // Teşhis amaçlı: sekme/ekran namaz sırasında en az bir kez gizlenip tekrar
+  // görünür oldu mu (ekran kilidi şüphesi — "hiç ilerlemedi" şikayetinin izini
+  // sürmek için). Namaz bitince Bitir öncesi ekrana bakılırsa görülebilir.
+  const [wokeFromHidden, setWokeFromHidden] = useState(false);
 
   const onAdvanceRef = useRef(onAdvance);
   onAdvanceRef.current = onAdvance;
@@ -99,6 +103,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       setTick(IDLE_TICK);
       setPassedLabel(null);
       setVideoSize(null);
+      setWokeFromHidden(false);
       return;
     }
 
@@ -124,6 +129,59 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     let stableCount = 0;
     let modelReady = false;
     let passedTimer: ReturnType<typeof setTimeout> | undefined;
+    type WakeLockSentinelLike = {
+      release?: () => Promise<void> | void;
+      addEventListener?: (ev: string, cb: () => void) => void;
+    };
+    let wakeLock: WakeLockSentinelLike | null = null;
+
+    // Namaz sırasında telefona dokunulmuyor; birkaç dakika süren bir namazda ekran
+    // kilitlenirse (Wake Lock tarayıcı/iOS sürümü tarafından desteklenmiyorsa ya da
+    // herhangi bir sebeple bırakılırsa) kamera akışı ve rAF döngüsü tamamen donar —
+    // "hiç ilerlemedi" şikayetinin en olası sebebi budur. Sekme/ekran tekrar
+    // görünür olduğunda kilidi yeniden almayı DENERİZ (expo-keep-awake bunu tek
+    // seferlik istiyor, yeniden almıyor).
+    const requestWakeLock = async () => {
+      try {
+        const nav = navigator as Navigator & {
+          wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinelLike> };
+        };
+        if (nav.wakeLock) {
+          wakeLock = await nav.wakeLock.request('screen');
+          wakeLock.addEventListener?.('release', () => {
+            wakeLock = null;
+          });
+        }
+      } catch {
+        // Desteklenmiyor olabilir (ör. eski iOS Safari) — sessizce yoksay.
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      if (!wakeLock) {
+        void requestWakeLock();
+      }
+      // Sekme gizliyken/ekran kilitliyken geçen süre GÜVENİLMEZ: rAF durmuş
+      // olabilir ama JS state'i (holdExpectedMs, currentConfirmed) donmuş halde
+      // kalır. Uyanır uyanmaz eski birikmiş süreyle + telefonu tutarken oluşan
+      // gürültülü ilk karelerle yanlışlıkla "ilerledi" tetiklenmesin diye
+      // her şeyi sıfırlıyoruz.
+      setWokeFromHidden(true);
+      gateStep = -1;
+      holdExpectedMs = 0;
+      currentConfirmed = false;
+      lastTickAt = performance.now();
+      lastAdvance = performance.now();
+      // iOS Safari, sekme/ekran gizliyken video akışını duraklatabilir; geri
+      // dönünce elle play() çağırmak gerekebilir, yoksa kare akışı hiç gelmez.
+      videoRef.current?.play().catch(() => undefined);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    void requestWakeLock();
 
     const mountVideo = (video: HTMLVideoElement) => {
       videoRef.current = video;
@@ -338,6 +396,8 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       cancelled = true;
       cancelAnimationFrame(raf);
       clearTimeout(passedTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      void wakeLock?.release?.();
       stream?.getTracks().forEach((track) => track.stop());
       landmarker?.close();
       if (videoRef.current) {
@@ -374,9 +434,17 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
   }, [enabled, status, loadMessage, framing, detected, tick, passedLabel]);
 
   const debugLine = useMemo(() => {
-    const base = cameraDebugLine(detected, tick);
-    return videoSize ? `${base} · cam: ${videoSize.width}x${videoSize.height}` : base;
-  }, [detected, tick, videoSize]);
+    let line = cameraDebugLine(detected, tick);
+    if (videoSize) {
+      line += ` · cam: ${videoSize.width}x${videoSize.height}`;
+    }
+    if (wokeFromHidden) {
+      // Ekran/sekme namaz sırasında en az bir kez gizlenip geri geldi — muhtemel
+      // ekran kilidi. "Hiç ilerlemedi" şikayetini teşhis etmek için önemli.
+      line += ' · ekran uyudu ⚠︎';
+    }
+    return line;
+  }, [detected, tick, videoSize, wokeFromHidden]);
 
   const cuePose = tick.waitingFor;
   const cue =
