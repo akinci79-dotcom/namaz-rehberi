@@ -142,6 +142,31 @@ function rukuLowAnkleConfidence(): PoseLandmark[] {
   return points;
 }
 
+/** Gerçek namaz kaydında bulunan KALICI (gürültü değil, sistematik) hata: bazı
+ * kamera açılarında rükûda gövdenin 2D y-izdüşümü hâlâ "dik" ölçülüyor (kameraya
+ * doğru/ondan uzağa eğilme y ekseninde net bir kısalma yaratmayabilir —
+ * foreshortening). Sonuç: rükû ~50 saniye kesintisiz "oturuş" okundu. z
+ * (derinlik) burada çözüm: omuz kalçaya göre kameraya belirgin yakınsa (öne
+ * eğilme) bu, y-izdüşümü yanıltıcı olsa da rükûyu doğru algılatmalı. */
+function rukuForeshortenedInY(): PoseLandmark[] {
+  const points = body({
+    0: [0.5, 0.2],
+    11: [0.38, 0.3],
+    12: [0.62, 0.3],
+    23: [0.44, 0.62],
+    24: [0.56, 0.62],
+    25: [0.44, 0.82],
+    26: [0.56, 0.82],
+    27: [0.44, 1.02],
+    28: [0.56, 1.02],
+  });
+  points[11] = { ...points[11], z: -0.4 };
+  points[12] = { ...points[12], z: -0.4 };
+  points[23] = { ...points[23], z: 0 };
+  points[24] = { ...points[24], z: 0 };
+  return points;
+}
+
 const cases: Array<[string, PoseLandmark[], string]> = [
   ['standing', standing(), 'kiyam'],
   ['ruku', ruku(), 'ruku'],
@@ -237,6 +262,17 @@ const rukuLowAnkleGuess = classifyPose(rukuLowAnkleConfidence());
 if (rukuLowAnkleGuess.pose !== 'ruku') {
   console.log(
     `FAIL ruku with low-confidence ankle (noisy) should fall back to knee and still classify as ruku, got ${rukuLowAnkleGuess.pose}`,
+  );
+  failed += 1;
+}
+
+// Regresyon: gerçek namaz kaydında bulunan kalıcı hata — 2D y-izdüşümü "dik"
+// görünse de (foreshortening), z (derinlik) öne eğilmeyi net gösteriyorsa
+// rükû doğru algılanmalı, oturuş/kıyama kaymamalı.
+const rukuForeshortenedGuess = classifyPose(rukuForeshortenedInY());
+if (rukuForeshortenedGuess.pose !== 'ruku') {
+  console.log(
+    `FAIL ruku foreshortened in Y (misleadingly upright torsoNorm) should use z-depth to still classify as ruku, got ${rukuForeshortenedGuess.pose}`,
   );
   failed += 1;
 }

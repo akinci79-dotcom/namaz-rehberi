@@ -22,10 +22,20 @@ function visible(point: PoseLandmark | undefined, min = MIN_VIS): point is PoseL
 }
 
 function mid(a: PoseLandmark, b: PoseLandmark): PoseLandmark {
+  // Basit (%50/%50) ortalama, iki taraf çok farklı güvenle görünürken (ör.
+  // gerçek namaz kaydında diz 0.88/0.44 gibi asimetrik durumlar sık görüldü)
+  // daha az güvenilir/muhtemelen kaymış tarafı eşit ağırlıkla karışıma katıp
+  // konumu bozabiliyordu. Güvene göre ağırlıklı ortalama, daha net görünen
+  // tarafa daha çok itibar eder. (visibility eşit olduğunda — sentetik
+  // testlerdeki gibi — davranış tam olarak eski basit ortalamayla aynıdır.)
+  const va = a.visibility ?? 1;
+  const vb = b.visibility ?? 1;
+  const total = va + vb || 1;
   return {
-    x: (a.x + b.x) / 2,
-    y: (a.y + b.y) / 2,
-    visibility: Math.min(a.visibility ?? 1, b.visibility ?? 1),
+    x: (a.x * va + b.x * vb) / total,
+    y: (a.y * va + b.y * vb) / total,
+    z: ((a.z ?? 0) * va + (b.z ?? 0) * vb) / total,
+    visibility: Math.min(va, vb),
   };
 }
 
@@ -153,6 +163,23 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
   const torsoNorm = (hip.y - shoulder.y) / scale;
   const angle = torsoAngleDeg(hip, shoulder);
   const bentByAngle = clamp((angle - 32) / 45, 0, 1);
+  // GERÇEK NAMAZ KAYDINDA BULUNAN KALICI HATA: bazı kamera açılarında rükûda
+  // torsoNorm'un 2D izdışımı hâlâ "dik" (kıyamdaki gibi) ölçülüyor — çünkü
+  // kameraya DOĞRU/ONDAN UZAĞA öne eğilme, y ekseninde net bir kısalma
+  // yaratmayabilir (foreshortening). Sonuç: rükû, ~50 saniye boyunca
+  // KESİNTİSİZ "oturuş" olarak algılandı (gürültü değil, sistematik hata).
+  // MediaPipe'ın verdiği ama şimdiye kadar kullanmadığımız z (derinlik)
+  // koordinatı bunun için çok daha güvenilir: köken kalça orta noktası,
+  // kameraya yaklaşan eklem daha KÜÇÜK/NEGATİF z alır. Rükûda omuz, kalçaya
+  // göre kameraya belirgin şekilde yaklaşır — bu, y izdüşümünden bağımsız
+  // doğrudan bir "öne eğilme" ölçüsü. z verisi yoksa/sıfırsa (sentetik
+  // testler, veya bazı tarayıcı/GPU yollarında) bu sinyal sessizce 0 kalır
+  // ve eski davranış (yalnızca y/açı) değişmeden korunur.
+  const shoulderZ = ((shoulderL.z ?? 0) + (shoulderR.z ?? 0)) / 2;
+  const hipZ = ((hipL.z ?? 0) + (hipR.z ?? 0)) / 2;
+  const zLean = (hipZ - shoulderZ) / scale;
+  const bentByZ = clamp(zLean / 1.4, 0, 1);
+  const bentSignal = Math.max(bentByAngle, bentByZ);
   const framing: Framing = tooClose ? 'close' : ankle || knee ? 'ok' : 'partial';
 
   const lowerRef = ankle ?? knee;
@@ -175,8 +202,8 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
     const lowTorso = clamp((0.5 - torsoNorm) / 0.4, 0, 1);
     return pick(
       {
-        kiyam: highTorso * (1 - bentByAngle),
-        ruku: Math.max(lowTorso, bentByAngle),
+        kiyam: highTorso * (1 - bentSignal),
+        ruku: Math.max(lowTorso, bentSignal),
         secde: 0,
         oturus: 0,
       },
@@ -189,6 +216,12 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
   const legNorm = ((lowerRef.y - hip.y) / scale) * legScaleCompensation;
   const highTorso = clamp((torsoNorm - 0.38) / 0.5, 0, 1);
   const lowTorso = clamp((0.52 - torsoNorm) / 0.4, 0, 1);
+  // z-derinliği güçlü şekilde öne eğilme gösteriyorsa (bentSignal yüksek),
+  // "dik gövde" güvenini düşürüyoruz — aksi halde y-izdüşümü yanıltıcı şekilde
+  // dik görünse bile oturuş (highTorso*lowLeg) rükûyu (Math.max(lowTorso,
+  // bentSignal)*highLeg) her zaman yenebiliyordu (asıl rapor edilen 50s'lik
+  // kalıcı yanlış algı).
+  const uprightTorso = highTorso * (1 - bentSignal);
   const highLeg = clamp((legNorm - 0.95) / 0.55, 0, 1);
   const lowLeg = clamp((1.05 - legNorm) / 0.55, 0, 1);
   // "compact" (baştan dize kısa mesafe) burun gerektirir; burun yoksa (secdede sık
@@ -199,9 +232,9 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
 
   return pick(
     {
-      kiyam: highTorso * highLeg,
-      ruku: Math.max(lowTorso, bentByAngle) * highLeg,
-      oturus: highTorso * lowLeg,
+      kiyam: uprightTorso * highLeg,
+      ruku: Math.max(lowTorso, bentSignal) * highLeg,
+      oturus: uprightTorso * lowLeg,
       secde: Math.max(lowTorso * lowLeg, compact * Math.max(lowTorso, 0.35)),
     },
     previous,
