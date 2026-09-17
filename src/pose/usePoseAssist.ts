@@ -284,11 +284,12 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance, onJump }: 
         return;
       }
 
+      const currentPose = poseForStepKind(here.kind);
       // KULLANICI İSTEĞİ: "Geride kalırsam ileri atsın" (Catch-up / İleri Sarma)
-      if (expected && pose === expected) {
+      if (pose === currentPose || (expected && pose === expected) || pose === 'unknown') {
         holdJumpMs = 0;
         jumpTargetIndex = -1;
-      } else if (pose !== 'unknown') {
+      } else {
         let target = -1;
         for (let i = idx + 1; i < list.length; i++) {
           if (poseForStepKind(list[i].kind) === pose) {
@@ -324,9 +325,6 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance, onJump }: 
           }, 2000);
           onJumpRef.current(jumpTargetIndex);
         }
-      } else {
-        holdJumpMs = 0;
-        jumpTargetIndex = -1;
       }
     };
 
