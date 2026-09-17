@@ -159,7 +159,11 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
   const ankle =
     visible(ankleL, 0.55) && visible(ankleR, 0.55) ? mid(ankleL, ankleR) : undefined;
 
-  const scale = Math.max(shoulderWidth, 0.1);
+  const torsoLength2D = Math.hypot(hip.x - shoulder.x, hip.y - shoulder.y);
+  // Kamerayı tam yandan koyduğunuzda omuz genişliği (shoulderWidth) 0'a yaklaşır.
+  // Bu da tüm "scale" (ölçek) mantığını çökertiyordu. Artık gövde uzunluğunun
+  // %80'ini (fiziksel olarak omuz genişliğine denktir) yedek olarak kullanıyoruz.
+  const scale = Math.max(shoulderWidth, torsoLength2D * 0.8, 0.1);
   const torsoNorm = (hip.y - shoulder.y) / scale;
   const angle = torsoAngleDeg(hip, shoulder);
   const bentByAngle = clamp((angle - 32) / 45, 0, 1);
