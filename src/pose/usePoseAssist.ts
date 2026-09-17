@@ -291,7 +291,10 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance, onJump }: 
         jumpTargetIndex = -1;
       } else {
         let target = -1;
-        for (let i = idx + 1; i < list.length; i++) {
+        // Bütün namazı ararsak, kamera 1 saniye yanlış görse 2. rekatın sonuna atlar!
+        // Yalnızca 3 adım ileriye kadar bakmasına izin veriyoruz (ör. rükûyu atlayıp secdeye gitmek = 2 adım).
+        const maxLookahead = Math.min(list.length, idx + 4);
+        for (let i = idx + 1; i < maxLookahead; i++) {
           if (poseForStepKind(list[i].kind) === pose) {
             target = i;
             break;
