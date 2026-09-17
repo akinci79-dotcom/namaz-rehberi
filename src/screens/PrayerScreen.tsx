@@ -87,6 +87,15 @@ export function PrayerScreen({
     onIndexChange(indexRef.current + 1);
   }, [onComplete, onHaptic, onIndexChange]);
 
+  const jumpStep = useCallback((newIndex: number) => {
+    onHaptic('medium');
+    if (newIndex >= steps.length) {
+      onComplete();
+      return;
+    }
+    onIndexChange(newIndex);
+  }, [onComplete, onHaptic, onIndexChange, steps.length]);
+
   const goNext = useCallback(() => {
     unlockSpeech();
     advanceStep();
@@ -97,6 +106,7 @@ export function PrayerScreen({
     steps,
     stepIndex,
     onAdvance: advanceStep,
+    onJump: jumpStep,
   });
 
   usePracticeTimer({
