@@ -43,10 +43,9 @@ export interface CameraTickResult {
 }
 
 /**
- * Bu adımı bırakmak için tutulması gereken duruş.
- * secde1/secde2: secde (sonraki oturuş/kıyam değil — eski kapı sesi hiç tetiklemiyordu).
- * celse: oturuş. rükû: önce rükû, teyitten sonra kıyam.
- * kıyam/niyet: ilerideki ilk farklı duruş (genelde rükû).
+ * Bu adımı bırakmak için tutulması gereken duruş (genelde bir sonraki adımın duruşu).
+ * rükû: önce rükû, teyitten sonra kıyam (kavme).
+ * diğer tüm adımlar: ilerideki ilk farklı duruş.
  */
 export function expectedPoseForTransition(
   steps: readonly CameraStepRef[],
@@ -59,11 +58,6 @@ export function expectedPoseForTransition(
   }
 
   switch (current.kind) {
-    case 'secde1':
-    case 'secde2':
-      return 'secde';
-    case 'celse':
-      return 'oturus';
     case 'ruku':
       return currentConfirmed ? 'kiyam' : 'ruku';
     default:
