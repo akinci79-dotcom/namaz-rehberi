@@ -22,18 +22,21 @@ export function completedRakahAnnouncements(
     return [];
   }
 
-  const left = steps[fromIndex];
-  const next = steps[fromIndex + 1];
-  if (!left || left.kind !== 'secde2' || !isPostRakahStep(next)) {
-    return [];
-  }
-  if (already.has(left.rakah)) {
-    return [];
+  const cues: { rakah: number; word: string }[] = [];
+
+  for (let i = fromIndex; i < toIndex; i++) {
+    const left = steps[i];
+    const next = steps[i + 1];
+    
+    if (left && left.kind === 'secde2' && isPostRakahStep(next)) {
+      if (!already.has(left.rakah)) {
+        const word = rakahNumberWord(left.rakah);
+        if (word) {
+          cues.push({ rakah: left.rakah, word });
+        }
+      }
+    }
   }
 
-  const word = rakahNumberWord(left.rakah);
-  if (!word) {
-    return [];
-  }
-  return [{ rakah: left.rakah, word }];
+  return cues;
 }

@@ -216,14 +216,25 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
   const legNorm = ((lowerRef.y - hip.y) / scale) * legScaleCompensation;
   const highTorso = clamp((torsoNorm - 0.38) / 0.5, 0, 1);
   const lowTorso = clamp((0.52 - torsoNorm) / 0.4, 0, 1);
-  // z-derinliği güçlü şekilde öne eğilme gösteriyorsa (bentSignal yüksek),
-  // "dik gövde" güvenini düşürüyoruz — aksi halde y-izdüşümü yanıltıcı şekilde
-  // dik görünse bile oturuş (highTorso*lowLeg) rükûyu (Math.max(lowTorso,
-  // bentSignal)*highLeg) her zaman yenebiliyordu (asıl rapor edilen 50s'lik
-  // kalıcı yanlış algı).
+  
   const uprightTorso = highTorso * (1 - bentSignal);
   const highLeg = clamp((legNorm - 0.95) / 0.55, 0, 1);
   const lowLeg = clamp((1.05 - legNorm) / 0.55, 0, 1);
+
+  // GERÇEK NAMAZ KAYDINDA BULUNAN KALICI HATA 2: Oturuş (celse/tahiyyat) sırasında
+  // telefon yere yakınsa veya kameraya açılıysa, 2D izdüşümde kalça ve ayak bileği 
+  // arasındaki Y mesafesi uzun görünebilir ve legNorm > 1.0 çıkıp oturuşu "kıyam"
+  // sanmasına neden olabilir (asıl rapor edilen 1. rekât celsesinde 150sn takılma).
+  // Rükûdaki bentByZ çözümüne benzer şekilde, dizlerin kalçaya göre Z ekseninde
+  // kameraya çok daha yakın olmasını (negatif z) kullanarak bükülü bacağı kesin
+  // olarak tespit ediyoruz.
+  const kneeZ = knee ? (((kneeL?.z ?? 0) + (kneeR?.z ?? 0)) / 2) : 0;
+  const kneeFoldZ = knee ? (hipZ - kneeZ) / scale : 0;
+  const foldedLegSignal = clamp(kneeFoldZ / 0.8, 0, 1);
+  
+  const effectiveHighLeg = highLeg * (1 - foldedLegSignal);
+  const effectiveLowLeg = Math.max(lowLeg, foldedLegSignal);
+
   // "compact" (baştan dize kısa mesafe) burun gerektirir; burun yoksa (secdede sık
   // görülen durum) bu ek sinyalden vazgeçip ana sinyale (lowTorso*lowLeg) güveniriz —
   // burnu zorunlu kılıp secde'yi hiç algılamamaktan çok daha iyi.
@@ -232,10 +243,10 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
 
   return pick(
     {
-      kiyam: uprightTorso * highLeg,
-      ruku: Math.max(lowTorso, bentSignal) * highLeg,
-      oturus: uprightTorso * lowLeg,
-      secde: Math.max(lowTorso * lowLeg, compact * Math.max(lowTorso, 0.35)),
+      kiyam: uprightTorso * effectiveHighLeg,
+      ruku: Math.max(lowTorso, bentSignal) * effectiveHighLeg,
+      oturus: uprightTorso * effectiveLowLeg,
+      secde: Math.max(lowTorso * effectiveLowLeg, compact * Math.max(lowTorso, 0.35)),
     },
     previous,
     0.3,
