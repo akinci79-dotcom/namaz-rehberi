@@ -1,10 +1,10 @@
-const CACHE = "namaz-offline-f7d2b6dc6e";
+const CACHE = "namaz-offline-6c063aabb77e2254";
 const ASSETS = [
   ".",
   "./index.html",
   "./404.html",
-  "./.nojekyll",
-  "./_expo/static/js/web/index-f7d2b6dc6e0e797666bba22b1b90bbe8.js",
+  "./offline.js?v=652b81c80497",
+  "./_expo/static/js/web/index-ee8ae09bc0c48c54831b48e41202ee7b.js",
   "./apple-touch-icon.png",
   "./favicon.ico",
   "./manifest.webmanifest",
@@ -19,77 +19,58 @@ const ASSETS = [
   "./models/pose_landmarker_lite.task",
   "./offline.js"
 ];
+const PREFIX = 'namaz-offline-';
 
 self.addEventListener('install', (event) => {
-  // skipWaiting: yeni sürüm, açık sekmeler kapanmasını beklemeden hemen devreye
-  // girsin. Aksi halde kullanıcı Safari'yi tamamen kapatmadan yeni dağıtımı
-  // (ör. bu kamera düzeltmesini) hiç göremez — önceki dağıtımlarda yaşanan sorun.
-  self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).catch(() => undefined),
-  );
+  // Tek dosya bile eksikse kurulumu reddet; çalışan eski sürümü koru.
+  // skipWaiting yok: açık bir namazın ortasında sürüm değiştirilmez.
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    Promise.all([
-      caches.keys().then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))),
-      ),
-      // clients.claim: zaten açık olan sekmeleri de hemen bu sürüme bağla.
-      self.clients.claim(),
-    ]),
-  );
+  // Diğer GitHub Pages uygulamalarının aynı origin'deki önbelleklerine dokunma.
+  event.waitUntil(caches.keys().then((keys) => Promise.all(
+    keys.filter((key) => key.startsWith(PREFIX) && key !== CACHE)
+      .map((key) => caches.delete(key)),
+  )));
 });
 
-function isShellRequest(request, url) {
-  return request.mode === 'navigate' || url.pathname.endsWith('/index.html') || url.pathname.endsWith('/404.html');
-}
-
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') {
-    return;
-  }
+  if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) {
-    return;
-  }
-
-  if (isShellRequest(event.request, url)) {
-    // ÖNEMLİ: index.html İÇİNDE hangi JS paketinin (içerik hash'i) yükleneceği
-    // yazılı. Bunu cache-first sunmak, ağ erişilebilir olsa bile kullanıcıyı
-    // yeni bir dağıtım gönderildikten SONRA da sonsuza dek eski kabukta (ve
-    // dolayısıyla eski koddaki hatalarla) takılı bırakabilir — gerçek kullanıcı
-    // testlerinde tam olarak bu şüphelenildi (art arda dağıtımlar hiçbir fark
-    // yaratmadı). Bu yüzden kabuk için ÖNCE AĞ, yalnızca çevrimdışıyken önbellek.
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response && response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(event.request, copy)).catch(() => undefined);
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request).then((cached) => cached ?? caches.match('./index.html'))),
-    );
-    return;
-  }
-
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) {
-        return cached;
+  const scope = new URL(self.registration.scope);
+  if (url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
+  const shell = event.request.mode === 'navigate' ||
+    url.pathname.endsWith('/index.html') || url.pathname.endsWith('/404.html');
+  const remember = (response) => {
+    if (response.ok) {
+      const copy = response.clone();
+      event.waitUntil(caches.open(CACHE).then((cache) => cache.put(event.request, copy)).catch(() => {}));
+    }
+    return response;
+  };
+  if (shell) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      try {
+        const response = await fetch(event.request);
+        if (response.ok) return remember(response);
+        return await cache.match(event.request) || await cache.match('./index.html') || response;
+      } catch {
+        return await cache.match(event.request) || await cache.match('./index.html') || Response.error();
       }
-      return fetch(event.request)
-        .then((response) => {
-          if (response && response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(event.request, copy)).catch(() => undefined);
-          }
-          return response;
-        })
-        .catch(() => caches.match('./index.html'));
-    }),
-  );
+    })());
+    return;
+  }
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(event.request);
+    if (cached) return cached;
+    try {
+      return remember(await fetch(event.request));
+    } catch {
+      // JS/model/WASM isteğine HTML dönmek gerçek hatayı gizler ve modeli bozar.
+      return Response.error();
+    }
+  })());
 });
