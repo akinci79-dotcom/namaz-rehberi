@@ -11,6 +11,9 @@ export function isPostRakahStep(step: PrayerStep | undefined): boolean {
  * Ses yalnızca bu kenarda: bulunduğumuz adım `secde2` (rekât N) ve sıradaki
  * adım kalkış veya tahiyyat. Atlanan aralıktaki secde2 sayılmaz — kameranın
  * rükû/kavme titremesiyle atladığı rekât “bitmiş” sayılmaz.
+ *
+ * Gemini bu fonksiyonu aralıktaki HER secde2'yi sayacak şekilde genişletti;
+ * testler bunu açıkça yasaklıyor ("spoke when camera skipped ruku → kalkış").
  */
 export function completedRakahAnnouncements(
   steps: readonly PrayerStep[],
@@ -22,21 +25,18 @@ export function completedRakahAnnouncements(
     return [];
   }
 
-  const cues: { rakah: number; word: string }[] = [];
-
-  for (let i = fromIndex; i < toIndex; i++) {
-    const left = steps[i];
-    const next = steps[i + 1];
-    
-    if (left && left.kind === 'secde2' && isPostRakahStep(next)) {
-      if (!already.has(left.rakah)) {
-        const word = rakahNumberWord(left.rakah);
-        if (word) {
-          cues.push({ rakah: left.rakah, word });
-        }
-      }
-    }
+  const left = steps[fromIndex];
+  const next = steps[fromIndex + 1];
+  if (!left || left.kind !== 'secde2' || !isPostRakahStep(next)) {
+    return [];
+  }
+  if (already.has(left.rakah)) {
+    return [];
   }
 
-  return cues;
+  const word = rakahNumberWord(left.rakah);
+  if (!word) {
+    return [];
+  }
+  return [{ rakah: left.rakah, word }];
 }

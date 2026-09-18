@@ -11,7 +11,6 @@ import {
   type CameraTickResult,
 } from './cameraAdvance';
 import { classifyPose } from './classifyPose';
-import { poseForStepKind } from './stepPose';
 import { createPoseLandmarker, type PoseLandmarkerHandle } from './mediapipe';
 import { cameraSupported, isWebRuntime } from './publicUrl';
 import { logSessionEvent, resetSessionLog } from './sessionLog';
@@ -42,7 +41,6 @@ interface Options {
   steps: readonly PrayerStep[];
   stepIndex: number;
   onAdvance: () => void;
-  onJump: (newIndex: number) => void;
 }
 
 export interface PoseAssistState {
@@ -75,7 +73,7 @@ const IDLE_TICK: CameraTickResult = {
   samePose: false,
 };
 
-export function usePoseAssist({ enabled, steps, stepIndex, onAdvance, onJump }: Options): PoseAssistState {
+export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options): PoseAssistState {
   const [status, setStatus] = useState<AssistStatus>('off');
   const [detected, setDetected] = useState<BodyPose>('unknown');
   const [framing, setFraming] = useState<Framing>('none');
@@ -92,8 +90,6 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance, onJump }: 
 
   const onAdvanceRef = useRef(onAdvance);
   onAdvanceRef.current = onAdvance;
-  const onJumpRef = useRef(onJump);
-  onJumpRef.current = onJump;
   const stepIndexRef = useRef(stepIndex);
   stepIndexRef.current = stepIndex;
   const stepsRef = useRef(steps);
@@ -144,8 +140,6 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance, onJump }: 
     let lastAdvance = 0;
     let gateStep = -1;
     let holdExpectedMs = 0;
-    let holdJumpMs = 0;
-    let jumpTargetIndex = -1;
     let currentConfirmed = false;
     let prevPose: BodyPose | undefined;
     let stablePose: BodyPose = 'unknown';
@@ -202,8 +196,6 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance, onJump }: 
       setWokeFromHidden(true);
       gateStep = -1;
       holdExpectedMs = 0;
-      holdJumpMs = 0;
-      jumpTargetIndex = -1;
       currentConfirmed = false;
       lastTickAt = performance.now();
       lastAdvance = performance.now();
@@ -268,8 +260,6 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance, onJump }: 
       if (result.advance) {
         lastAdvance = now;
         holdExpectedMs = 0;
-        holdJumpMs = 0;
-        jumpTargetIndex = -1;
         const nxt = list[idx + 1];
         const label = nxt ? `Geçildi: ${nxt.title}` : 'Geçildi';
         logSessionEvent(`KAMERA İLERLETTİ #${idx} → #${idx + 1} (${nxt?.kind ?? '?'}), algı=${pose}`);
@@ -281,53 +271,6 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance, onJump }: 
           }
         }, 1400);
         onAdvanceRef.current();
-        return;
-      }
-
-      const currentPose = poseForStepKind(here.kind);
-      // KULLANICI İSTEĞİ: "Geride kalırsam ileri atsın" (Catch-up / İleri Sarma)
-      if (pose === currentPose || (expected && pose === expected) || pose === 'unknown') {
-        holdJumpMs = 0;
-        jumpTargetIndex = -1;
-      } else {
-        let target = -1;
-        // Bütün namazı ararsak, kamera 1 saniye yanlış görse 2. rekatın sonuna atlar!
-        // Yalnızca 3 adım ileriye kadar bakmasına izin veriyoruz (ör. rükûyu atlayıp secdeye gitmek = 2 adım).
-        const maxLookahead = Math.min(list.length, idx + 4);
-        for (let i = idx + 1; i < maxLookahead; i++) {
-          if (poseForStepKind(list[i].kind) === pose) {
-            target = i;
-            break;
-          }
-        }
-        if (target !== -1) {
-          if (jumpTargetIndex === target) {
-            holdJumpMs += dt;
-          } else {
-            jumpTargetIndex = target;
-            holdJumpMs = dt;
-          }
-        } else {
-          holdJumpMs = 0;
-          jumpTargetIndex = -1;
-        }
-
-        if (holdJumpMs >= 1500) { // Normal geçişten çok daha uzun süre (1.5sn) bekler ki yanlışlıkla atlamasın
-          logSessionEvent(`KAMERA İLERİ ATLADI: #${idx} → #${jumpTargetIndex} (${list[jumpTargetIndex].kind}) algı=${pose}`);
-          lastAdvance = now;
-          holdExpectedMs = 0;
-          holdJumpMs = 0;
-          const nxt = list[jumpTargetIndex];
-          const label = `İleri atladı: ${nxt.title}`;
-          setPassedLabel(label);
-          clearTimeout(passedTimer);
-          passedTimer = setTimeout(() => {
-            if (!cancelled) {
-              setPassedLabel(null);
-            }
-          }, 2000);
-          onJumpRef.current(jumpTargetIndex);
-        }
       }
     };
 

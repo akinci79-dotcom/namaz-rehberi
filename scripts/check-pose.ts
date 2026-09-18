@@ -167,6 +167,28 @@ function rukuForeshortenedInY(): PoseLandmark[] {
   return points;
 }
 
+/** Oturuşta 2D bacak uzun görünse de dizler kalçaya göre kameraya yakınsa oturuş kalmalı. */
+function sittingLongLegsFoldedZ(): PoseLandmark[] {
+  const points = sitting();
+  points[25] = { ...points[25], z: -0.35 };
+  points[26] = { ...points[26], z: -0.35 };
+  points[23] = { ...points[23], z: 0 };
+  points[24] = { ...points[24], z: 0 };
+  return points;
+}
+
+/** Rükûda diz z'si yanıltıcı şekilde yakın olsa bile rükû kalmalı (bentSignal yüksek). */
+function rukuWithKneeZTowardCamera(): PoseLandmark[] {
+  const points = ruku();
+  points[11] = { ...points[11], z: -0.35 };
+  points[12] = { ...points[12], z: -0.35 };
+  points[25] = { ...points[25], z: -0.4 };
+  points[26] = { ...points[26], z: -0.4 };
+  points[23] = { ...points[23], z: 0 };
+  points[24] = { ...points[24], z: 0 };
+  return points;
+}
+
 const cases: Array<[string, PoseLandmark[], string]> = [
   ['standing', standing(), 'kiyam'],
   ['ruku', ruku(), 'ruku'],
@@ -273,6 +295,22 @@ const rukuForeshortenedGuess = classifyPose(rukuForeshortenedInY());
 if (rukuForeshortenedGuess.pose !== 'ruku') {
   console.log(
     `FAIL ruku foreshortened in Y (misleadingly upright torsoNorm) should use z-depth to still classify as ruku, got ${rukuForeshortenedGuess.pose}`,
+  );
+  failed += 1;
+}
+
+const sittingFoldedGuess = classifyPose(sittingLongLegsFoldedZ());
+if (sittingFoldedGuess.pose !== 'oturus') {
+  console.log(
+    `FAIL sitting with folded-leg z should still classify as oturus, got ${sittingFoldedGuess.pose}`,
+  );
+  failed += 1;
+}
+
+const rukuKneeZGuess = classifyPose(rukuWithKneeZTowardCamera());
+if (rukuKneeZGuess.pose !== 'ruku') {
+  console.log(
+    `FAIL ruku must not be punished into oturus just because knees are closer in z, got ${rukuKneeZGuess.pose}`,
   );
   failed += 1;
 }

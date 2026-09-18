@@ -225,17 +225,15 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
   const highLeg = clamp((legNorm - 0.95) / 0.55, 0, 1);
   const lowLeg = clamp((1.05 - legNorm) / 0.55, 0, 1);
 
-  // GERÇEK NAMAZ KAYDINDA BULUNAN KALICI HATA 2: Oturuş (celse/tahiyyat) sırasında
-  // telefon yere yakınsa veya kameraya açılıysa, 2D izdüşümde kalça ve ayak bileği 
-  // arasındaki Y mesafesi uzun görünebilir ve legNorm > 1.0 çıkıp oturuşu "kıyam"
-  // sanmasına neden olabilir (asıl rapor edilen 1. rekât celsesinde 150sn takılma).
-  // Rükûdaki bentByZ çözümüne benzer şekilde, dizlerin kalçaya göre Z ekseninde
-  // kameraya çok daha yakın olmasını (negatif z) kullanarak bükülü bacağı kesin
-  // olarak tespit ediyoruz.
-  const kneeZ = knee ? (((kneeL?.z ?? 0) + (kneeR?.z ?? 0)) / 2) : 0;
+  // Oturuşta 2D Y mesafesi yanıltıcı şekilde uzun görünebilir (kıyam sanılır).
+  // Dizlerin kalçaya göre kameraya daha yakın olması (z) bükülü bacak sinyalidir.
+  // ÖNEMLİ: rükûda da dizler kameraya yaklaşabilir — bentSignal yüksekken bu
+  // sinyali KULLANMIYORUZ, yoksa rükû tekrar "oturuş"a kayar (Gemini'nin
+  // foldedLegSignal'i rükû skorunu effectiveHighLeg ile cezalandırıyordu).
+  const kneeZ = knee ? ((kneeL?.z ?? 0) + (kneeR?.z ?? 0)) / 2 : 0;
   const kneeFoldZ = knee ? (hipZ - kneeZ) / scale : 0;
-  const foldedLegSignal = clamp(kneeFoldZ / 0.8, 0, 1);
-  
+  const foldedLegSignal = bentSignal < 0.35 ? clamp(kneeFoldZ / 0.8, 0, 1) : 0;
+
   const effectiveHighLeg = highLeg * (1 - foldedLegSignal);
   const effectiveLowLeg = Math.max(lowLeg, foldedLegSignal);
 
@@ -248,7 +246,8 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
   return pick(
     {
       kiyam: uprightTorso * effectiveHighLeg,
-      ruku: Math.max(lowTorso, bentSignal) * effectiveHighLeg,
+      // Rükû: bacaklar dik kalır — foldedLeg ile cezalandırma.
+      ruku: Math.max(lowTorso, bentSignal) * highLeg,
       oturus: uprightTorso * effectiveLowLeg,
       secde: Math.max(lowTorso * effectiveLowLeg, compact * Math.max(lowTorso, 0.35)),
     },
