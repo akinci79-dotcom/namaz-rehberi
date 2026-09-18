@@ -7,7 +7,9 @@ import {
   type AdvanceHint,
   type CameraTickResult,
 } from './cameraAdvance';
-import { createCameraProgress } from './cameraProgress';
+import { createPrayerTracker, type TrackingSnapshot } from './prayerTracker';
+import { trackerStepIndex } from './trackerPresentation';
+import { speakCue } from '../voice/speech';
 import { acceptedCameraPose, createTakbirStart } from './takbirStart';
 import { classifyPose } from './classifyPose';
 import { createPoseLandmarker, type PoseLandmarkerHandle } from './mediapipe';
@@ -39,10 +41,13 @@ interface Options {
   steps: readonly PrayerStep[];
   stepIndex: number;
   onAdvance: (targetIndex: number) => void;
+  onRakah: (rakah: number) => void;
 }
 
 export interface PoseAssistState {
   status: AssistStatus;
+  completedRakahs: number;
+  trackingUncertain: boolean;
   detected: BodyPose;
   framing: Framing;
   waitingFor: BodyPose | null;
@@ -73,7 +78,10 @@ const IDLE_TICK: CameraTickResult = {
   samePose: false,
 };
 
-export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options): PoseAssistState {
+export function usePoseAssist({ enabled, steps, stepIndex, onAdvance, onRakah }: Options): PoseAssistState {
+  const [tracking, setTracking] = useState<TrackingSnapshot | null>(null);
+  const onRakahRef = useRef(onRakah);
+  onRakahRef.current = onRakah;
   const [status, setStatus] = useState<AssistStatus>('off');
   const [waitingTakbir, setWaitingTakbir] = useState(true);
   const [detected, setDetected] = useState<BodyPose>('unknown');
@@ -130,8 +138,9 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     // olduğunu (adım/algı/çerçeve/ilerleme) sessizce kaydediyoruz. Namazdan
     // sonra bu kayıt ekranda gösterilebilir (bkz. DiagnosticsModal).
     resetSessionLog();
-    logSessionEvent('kamera başlatılıyor · sürüm: tekbir-1');
+    logSessionEvent('kamera başlatılıyor · sürüm: tracker-2');
     setWaitingTakbir(true);
+    setTracking(null);
     setTick(IDLE_TICK);
 
     let cancelled = false;
@@ -140,7 +149,8 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     let raf = 0;
     let lastFrame = 0;
     let lastVideoTime = -1;
-    const progress = createCameraProgress(stepsRef.current);
+    const tracker = createPrayerTracker(stepsRef.current[0].totalRakah);
+    let readySpoken = false;
     const takbir = createTakbirStart();
     let prayerStarted = false;
     let takbirPhase = 'waiting';
@@ -149,7 +159,6 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     let publishedPose: BodyPose = 'unknown';
     let stableCount = 0;
     let modelReady = false;
-    let passedTimer: ReturnType<typeof setTimeout> | undefined;
     type WakeLockSentinelLike = {
       release?: () => Promise<void> | void;
       addEventListener?: (ev: string, cb: () => void) => void;
@@ -185,6 +194,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') {
         logSessionEvent('sekme/ekran gizlendi');
+        setTracking(tracker.suspend('Ekran gizlendi; takip kesildi'));
         return;
       }
       if (!wakeLock) {
@@ -197,7 +207,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       // her şeyi sıfırlıyoruz.
       logSessionEvent('sekme/ekran tekrar görünür oldu (muhtemel uyku)');
       setWokeFromHidden(true);
-      progress.reset();
+      setTracking(tracker.suspend('Ekran gizlendi; takip kesildi'));
       takbir.resetPending();
       publishedPose = 'unknown';
       stablePose = 'unknown';
@@ -223,33 +233,18 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
 
     const runGate = (now: number, pose: BodyPose) => {
       if (!prayerStarted) return;
-      const idx = stepIndexRef.current;
-      const list = stepsRef.current;
-      const here = list[idx];
-      if (!here) {
-        return;
+      const before = tracker.snapshot();
+      const result = tracker.update(pose, now);
+      setTracking(result);
+      setTick({ ...IDLE_TICK, expectedPose: result.expected, waitingFor: result.expected,
+        currentPose: pose, hint: result.uncertain ? 'manual' : 'camera' });
+      if (before.phase !== result.phase || before.uncertain !== result.uncertain) {
+        logSessionEvent(`takip: ${before.phase} → ${result.phase}; rekât=${result.rakah}; tamamlanan=${result.completed}; neden=${result.reason ?? 'yok'}`);
       }
-      const result = progress.update(idx, pose, now, modelReady);
-      setTick(result);
-
-      if (result.commitCurrent) {
-        logSessionEvent(`rükû onaylandı (#${idx}), kıyam bekleniyor`);
-        return;
-      }
-
-      // Algı beklenen duruşu HOLD süresince tuttuysa Sonraki ile aynı ilerleme.
-      if (result.advance && result.targetIndex !== null) {
-        const target = result.targetIndex;
-        const nxt = list[target];
-        const label = nxt ? `Geçildi: ${nxt.title}` : 'Geçildi';
-        logSessionEvent(`KAMERA İLERLETTİ #${idx} → #${target} (${nxt?.kind ?? '?'}), algı=${pose}`);
-        setPassedLabel(label);
-        clearTimeout(passedTimer);
-        passedTimer = setTimeout(() => {
-          if (!cancelled) {
-            setPassedLabel(null);
-          }
-        }, 1400);
+      if (result.completedEvent !== null) onRakahRef.current(result.completedEvent);
+      if (result.uncertain || before.phase === result.phase) return;
+      const target = trackerStepIndex(stepsRef.current, result);
+      if (target >= 0) {
         stepIndexRef.current = target;
         onAdvanceRef.current(target);
       }
@@ -338,6 +333,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
         let loggedFraming: Framing | null = null;
         let lastHeartbeatAt = performance.now();
 
+        let lastMeasurementAt = 0;
         const loop = () => {
           if (cancelled) {
             return;
@@ -352,18 +348,22 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
               const result = landmarker.detectForVideo(video, now);
               const points = result.landmarks?.[0];
               if (!prayerStarted) {
-                const startGuess = points ? classifyPose(points) : { pose: 'unknown' as const, confidence: 0, framing: 'none' as const };
-                const phase = takbir.update(points, startGuess, now);
+                const startGuess = points ? classifyPose(points, undefined, { width: video.videoWidth, height: video.videoHeight }) : { pose: 'unknown' as const, confidence: 0, framing: 'none' as const };
+                const phase = takbir.update(points, startGuess, now, { width: video.videoWidth, height: video.videoHeight });
                 if (phase !== takbirPhase) {
                   logSessionEvent(`tekbir: ${takbirPhase} → ${phase}`);
                   takbirPhase = phase;
+                }
+                if (phase === 'ready' && !readySpoken) {
+                  readySpoken = true;
+                  speakCue('Kamera hazır. Tekbir bekleniyor.');
                 }
                 if (phase === 'started') {
                   const firstKiyam = stepsRef.current.findIndex(s => s.kind === 'kiyam');
                   if (firstKiyam >= 0) {
                     prayerStarted = true;
                     setWaitingTakbir(false);
-                    progress.reset();
+                    setTracking(tracker.start(now));
                     stepIndexRef.current = firstKiyam;
                     onAdvanceRef.current(firstKiyam);
                     logSessionEvent(`TEKBİR ONAYLANDI → #${firstKiyam}; takip başladı`);
@@ -382,9 +382,20 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
                 stablePose = 'unknown';
                 publishedPose = 'unknown';
               } else {
-                const rawGuess = classifyPose(points, prevPose);
+                const rawGuess = classifyPose(points, prevPose, { width: video.videoWidth, height: video.videoHeight });
                 const guess = { ...rawGuess, pose: acceptedCameraPose(rawGuess) };
                 prevPose = guess.pose;
+                if (now - lastMeasurementAt >= 1000) {
+                  lastMeasurementAt = now;
+                  // Compact geometry only; no image or video is stored.
+                  const ids = [11,12,23,24,25,26,27,28];
+                  logSessionEvent('ölçüm ' + JSON.stringify({
+                    size: [video.videoWidth, video.videoHeight],
+                    pose: guess.pose, score: +guess.confidence.toFixed(2),
+                    joints: ids.map(i => [i, ...[points[i]?.x, points[i]?.y, points[i]?.z, points[i]?.visibility]
+                      .map(v => v === undefined ? null : +v.toFixed(3))]),
+                  }));
+                }
                 setFraming(guess.framing);
                 if (guess.framing !== loggedFraming) {
                   loggedFraming = guess.framing;
@@ -407,7 +418,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
                         ? ` [omuz ${(points[11]?.visibility ?? 0).toFixed(2)}/${(points[12]?.visibility ?? 0).toFixed(2)} kalça ${(points[23]?.visibility ?? 0).toFixed(2)}/${(points[24]?.visibility ?? 0).toFixed(2)} diz ${(points[25]?.visibility ?? 0).toFixed(2)}/${(points[26]?.visibility ?? 0).toFixed(2)} ayak ${(points[27]?.visibility ?? 0).toFixed(2)}/${(points[28]?.visibility ?? 0).toFixed(2)}]`
                         : '';
                     logSessionEvent(
-                      `algı: ${publishedPose} → ${guess.pose} (adım #${stepIndexRef.current}, güven ${guess.confidence.toFixed(2)})${visInfo}`,
+                      `algı: ${publishedPose} → ${guess.pose} (adım #${stepIndexRef.current}, duruş puanı ${guess.confidence.toFixed(2)})${visInfo}`,
                     );
                   }
                   publishedPose = guess.pose;
@@ -431,6 +442,9 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
             runGate(now, pose);
             mountVideo(video);
           }
+
+          // A frozen video produces no observations; surface that loss without waiting for recovery.
+          if (prayerStarted && now - lastFrame > 500) runGate(now, 'unknown');
 
           // Nabız: değişiklik olmasa bile döngünün canlı olduğunu ve o anki
           // durumu kanıtlamak için düzenli aralıklarla kaydet. Sekme donarsa
@@ -471,7 +485,6 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
-      clearTimeout(passedTimer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       void wakeLock?.release?.();
       stream?.getTracks().forEach((track) => track.stop());
@@ -503,7 +516,11 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     if (status === 'degraded' && loadMessage) {
       return loadMessage;
     }
-    if (waitingTakbir) return 'Tekbir bekleniyor — ayakta ellerinizi kulak hizasına kaldırıp indirin.';
+    if (tracking?.uncertain) return 'Sayım durdu: ' + tracking.reason + '. Yeniden başlamak için kamerayı kapatıp açın.';
+    if (tracking?.phase === 'complete') return `${tracking.completed} rekâtın hareket dizisi izlendi. Selamdan sonra Bitir’e dokunun.`;
+    if (waitingTakbir) return framing !== 'ok'
+      ? 'Hazırlık: telefonu yerleştirin; ayakta ve secdede tüm gövdenize yer bırakın.'
+      : 'Tekbir bekleniyor — ayakta ellerinizi kulak hizasına kaldırıp indirin.';
     return cameraStatusText({
       framingClose: framingCloseFlag,
       bodyMissing: bodyMissingFlag,
@@ -512,7 +529,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       tick,
       passedLabel,
     });
-  }, [enabled, status, loadMessage, waitingTakbir, framingCloseFlag, bodyMissingFlag, legsMissingFlag, detected, tick, passedLabel]);
+  }, [enabled, status, loadMessage, tracking, waitingTakbir, framingCloseFlag, bodyMissingFlag, legsMissingFlag, detected, tick, passedLabel]);
 
   const debugLine = useMemo(() => {
     let line = cameraDebugLine(detected, tick);
@@ -534,11 +551,13 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     enabled &&
     status === 'running' &&
     !passedLabel &&
-    !waitingTakbir
+    !waitingTakbir && !tracking?.uncertain && tracking?.phase !== 'complete'
       ? POSE_CUE_TR[cuePose]
       : null;
 
   return {
+    completedRakahs: tracking?.completed ?? 0,
+    trackingUncertain: tracking?.uncertain ?? false,
     status,
     detected,
     framing,

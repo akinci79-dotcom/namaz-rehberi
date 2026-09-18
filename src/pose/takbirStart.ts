@@ -18,7 +18,7 @@ export function createTakbirStart() {
   const reset = () => { phase = 'waiting'; candidate = ''; lastAt = null; };
   return {
     resetPending() { if (phase !== 'started') reset(); },
-    update(points: readonly PoseLandmark[] | undefined, guess: PoseGuess, now: number): TakbirPhase {
+    update(points: readonly PoseLandmark[] | undefined, guess: PoseGuess, now: number, size = { width: 1, height: 1 }): TakbirPhase {
       if (phase === 'started') return phase;
       if (lastAt !== null && (now - lastAt > 500 || now < lastAt)) reset();
       lastAt = now;
@@ -31,7 +31,7 @@ export function createTakbirStart() {
         reset();
         return phase;
       }
-      const p = points!;
+      const p = points!.map(point => ({ ...point, y: point.y * size.height / size.width }));
       const shoulderY = (p[11].y + p[12].y) / 2;
       const torso = (p[23].y + p[24].y) / 2 - shoulderY;
       if (torso <= 0.05) { reset(); return phase; }

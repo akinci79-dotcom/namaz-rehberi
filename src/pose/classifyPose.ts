@@ -56,7 +56,17 @@ function empty(framing: Framing): PoseGuess {
  * Ön kamera: omuz genişliği ölçek.
  * iPhone selfie sıkça yalnızca yüz/omuz gösterir — kalça yoksa dik gövde kıyam sayılır.
  */
-export function classifyPose(landmarks: readonly PoseLandmark[], previous?: BodyPose): PoseGuess {
+export function classifyPose(
+  input: readonly PoseLandmark[], previous?: BodyPose,
+  size: { width: number; height: number } = { width: 1, height: 1 },
+): PoseGuess {
+  if (!(size.width > 0 && size.height > 0)) return empty('none');
+  // x and z use image width; put y in the same units before geometry.
+  const landmarks = input.map(p => ({ ...p, y: p.y * size.height / size.width,
+    visibility: Number.isFinite(p.x) && Number.isFinite(p.y) &&
+      (p.z === undefined || Number.isFinite(p.z)) && p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1
+      ? p.visibility ?? 1 : 0,
+  }));
   const nose = landmarks[NOSE];
   const shoulderL = landmarks[L_SHOULDER];
   const shoulderR = landmarks[R_SHOULDER];
@@ -81,7 +91,7 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
 
   const shoulder = mid(shoulderL, shoulderR);
   const shoulderWidth = Math.abs(shoulderR.x - shoulderL.x);
-  const tooClose = shoulderWidth > 0.48 || (shoulder.y < 0.42 && !visible(hipL, 0.18));
+  const tooClose = shoulderWidth > 0.48 || (shoulder.y * size.width / size.height < 0.42 && !visible(hipL, 0.18));
 
   const hasHips = visible(hipL, 0.16) && visible(hipR, 0.16);
   if (!hasHips) {

@@ -33,7 +33,7 @@ export function CameraAssistBar({ theme, enabled, onToggle, assist, previewHeigh
           <View style={styles.overlay} pointerEvents="box-none">
             <View style={styles.overlayTop}>
               <ToggleChip theme={theme} enabled={enabled} onToggle={onToggle} />
-              <Text style={styles.frameHint}>Baş · gövde · dizler kadrajda olsun</Text>
+              <Text style={styles.frameHint}>Ayakta ve secdede tüm gövdeye yer bırakın</Text>
             </View>
             <View
               style={[
@@ -83,7 +83,7 @@ function ToggleChip({
       ]}
     >
       <Text style={[styles.toggleText, { color: enabled ? '#1A1408' : theme.text }]}>
-        Kamera yardımcısı
+        {enabled ? 'Takibi kapat' : 'Kamerayla rekât takibi'}
       </Text>
     </Pressable>
   );

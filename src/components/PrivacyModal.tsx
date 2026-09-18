@@ -1,9 +1,9 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { Theme } from '../theme/colors';
 
 export const CAMERA_PRIVACY =
-  'Kamera yardımcısı ön kamerayı kullanarak duruşunuzu (kıyam, rükû, secde, oturuş) bu cihazda tanır. Görüntü kareleri sunucuya yüklenmez, kaydedilmez ve başka bir yere gönderilmez. İzni istediğiniz an kapatabilirsiniz.';
+  'Kamera yardımcısı ön kamerayı kullanarak duruşunuzu (kıyam, rükû, secde, oturuş) bu cihazda tanır. Görüntü kareleri sunucuya yüklenmez, kaydedilmez ve başka bir yere gönderilmez. Teşhis için sayısal eklem ölçümleri ve hareket günlüğü yalnızca bu cihazda tutulur; günlükten silebilirsiniz. İzni istediğiniz an kapatabilirsiniz.';
 
 interface Props {
   visible: boolean;
@@ -18,16 +18,16 @@ export function PrivacyModal({ visible, theme, onAccept, onCancel }: Props) {
       <View style={[styles.backdrop, { backgroundColor: theme.overlay }]}>
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.title, { color: theme.text }]}>Kamera gizliliği</Text>
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 12 }}>
           <Text style={[styles.body, { color: theme.textMuted }]}>{CAMERA_PRIVACY}</Text>
           <Text style={[styles.body, { color: theme.textMuted }]}>
-            HTTPS gerekir (bu sayfa zaten güvenli). Telefonu yere yakın ve yeterince geride bir
-            yere yaslayın; ayakta dururken baştan dizlere kadar tüm gövde kadrajda kalsın. Dizler
-            görünmezse secde ve oturuş güvenle ayırt edilemez. Namaz sırasında ekrana bakmadığınız
-            için telefonu tam karşınıza değil, hafif yandan (yaklaşık 30-45 derece açıyla) yerleştirin
-            — rükûdaki öne eğilme bu açıdan çok daha net görülür. Kamera açıkken süreyle adım
-            atılmaz: sonraki duruş görünür ve tutulursa geçer, ya da Sonraki’ye basarsınız. Aynı
-            duruştaki metinler (niyet → tekbir) için Sonraki gerekir.
+            Telefonu sabit, yere yakın ve sağ çaprazınıza yerleştirin. Başlamadan önce ayakta
+            ve secdede tüm gövdenizin kadraja sığdığını kontrol edin. Hazır bildiriminin ardından
+            tekbirle takip başlar. İkinci secdeden çıkış doğrulanınca rekât sayısı söylenir.
+            Uzun görüntü kaybında sayım durur. Yeniden denemek için kamerayı kapatıp açın.
+            İlk denemeyi namaz dışında iki rekâtlık hareket provasıyla yapın.
           </Text>
+          </ScrollView>
           <View style={styles.row}>
             <Pressable
               onPress={onCancel}
@@ -57,6 +57,7 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
     maxWidth: 520,
+    maxHeight: '90%',
     width: '100%',
     alignSelf: 'center',
   },

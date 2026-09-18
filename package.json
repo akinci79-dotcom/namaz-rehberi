@@ -15,7 +15,8 @@
     "export:web": "expo export -p web && node scripts/prepare-web-dist.mjs",
     "check:camera": "node --import tsx scripts/check-camera-flow.ts",
     "check:offline": "node scripts/check-offline.mjs",
-    "test": "npm run check:prayers && npm run check:pose && npm run check:camera && npm run check:offline"
+    "test": "npm run check:prayers && npm run check:pose && npm run check:camera && npm run check:offline && npm run check:tracker",
+    "check:tracker": "node --import tsx scripts/check-tracker.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.15",

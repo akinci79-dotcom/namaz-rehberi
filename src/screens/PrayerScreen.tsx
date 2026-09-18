@@ -21,10 +21,10 @@ import { usePoseVoiceCues } from '../pose/usePoseVoiceCues';
 import { usePracticeTimer } from '../pose/usePracticeTimer';
 import type { Theme } from '../theme/colors';
 import type { PrayerId, SittingKind } from '../types/prayer';
-import { isVoiceMuted, setVoiceMuted, unlockSpeech } from '../voice/speech';
+import { isVoiceMuted, setVoiceMuted, unlockSpeech, speakCue, rakahNumberWord } from '../voice/speech';
 import { usePrayerVoice } from '../voice/usePrayerVoice';
 
-const PRIVACY_KEY = 'namaz.cameraPrivacy.v1';
+const PRIVACY_KEY = 'namaz.cameraPrivacy.v2';
 
 interface Props {
   theme: Theme;
@@ -98,6 +98,10 @@ export function PrayerScreen({
     enabled: cameraOn,
     steps,
     stepIndex,
+    onRakah: (rakah) => {
+      const word = rakahNumberWord(rakah);
+      if (word && !voiceMuted) speakCue(word);
+    },
     onAdvance: (targetIndex) => {
       onHaptic('medium');
       onIndexChange(targetIndex);
@@ -105,13 +109,13 @@ export function PrayerScreen({
   });
 
   usePracticeTimer({
-    enabled: !cameraOn,
+    enabled: !cameraOn && !privacyOpen,
     steps,
     stepIndex,
     onAdvance: advanceStep,
   });
 
-  usePrayerVoice(prayerId, steps, stepIndex, !voiceMuted);
+  usePrayerVoice(prayerId, steps, stepIndex, !voiceMuted && !cameraOn);
   usePoseVoiceCues(cameraOn && !voiceMuted, assist);
 
   const requestCamera = () => {
@@ -189,7 +193,7 @@ export function PrayerScreen({
         />
         {!cameraOn ? (
           <Text style={[styles.practiceLabel, { color: theme.textMuted }]}>
-            Süre ile prova (kamerasız)
+            Öğrenme · süre ile prova (kamerasız)
           </Text>
         ) : null}
 
@@ -216,10 +220,11 @@ export function PrayerScreen({
             accessibilityRole="button"
             accessibilityLabel="Sonraki adıma geç"
             onPress={goNext}
+            disabled={cameraOn}
             style={[styles.stageInner, cameraOn && styles.stageInnerCamera]}
           >
             <Text style={[styles.rakah, { color: theme.accent, fontSize: cameraOn ? 22 : 28 }]}>
-              Rekât {step.rakah} / {step.totalRakah}
+              {cameraOn ? `Doğrulanan rekât: ${assist.completedRakahs} / ${step.totalRakah}` : `Rekât ${step.rakah} / ${step.totalRakah}`}
             </Text>
 
             {step.sitting ? (
@@ -266,13 +271,13 @@ export function PrayerScreen({
 
             {!cameraOn ? (
               <Text style={[styles.tapHint, { color: theme.textMuted }]}>
-                Süre ile prova (kamerasız). Dokunarak da geçebilirsiniz. Rekât bitince bir kez sayı.
+                Öğrenme · süre ile prova (kamerasız). Dokunarak da geçebilirsiniz. Rekât bitince bir kez sayı.
               </Text>
             ) : null}
           </Pressable>
         </ScrollView>
 
-        <View style={styles.nav}>
+        {!cameraOn ? <View style={styles.nav}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Önceki adım"
@@ -309,7 +314,7 @@ export function PrayerScreen({
               {isLast ? 'Tamamla' : 'Sonraki'}
             </Text>
           </Pressable>
-        </View>
+        </View> : null}
       </View>
     </SafeAreaView>
   );

@@ -56,25 +56,35 @@ npm run typecheck && npm test && npm run export:web
 
 İsteğe bağlı: Safari’de **Paylaş → Ana Ekrana Ekle**.
 
-### Kamera yardımcısı (iPad / iPhone Safari)
+### Kamerayla rekât takibi (tracker-2)
 
-Namaz ekranında **Kamera yardımcısı**nı açın. Ön kamera duruşu tanır (kıyam, rükû, secde, oturuş).
+Öğrenme/prova ekranından “Kamerayla rekât takibi” açılır. Telefon sabit ve hafif yanda
+olmalı; ayakta ve secdede tüm gövde için görüntüde yer bırakılmalıdır. Kamera hazır
+bildiriminden sonra iki elin aşağı → kulak hizası → aşağı hareketi başlangıcı açar.
+Bu bildirim yalnızca ayakta başlangıç koşullarını doğrular; secde kadrajını garanti etmez.
 
-- **Kamera açıkken otomatik prova süresi yok.** Hareket yaklaşık 0,55 sn doğrulanınca ilerlenir. Niyet/tekbir/kıyam aynı rükû için ayrı ayrı bekletilmez; doğrulanan rükû yeniden onaylatılmaz. Kavmede doğrulanan ilk secde de ikinci kez bekletilmez. İki secde arasında oturuş görülmeden rekât sayılmaz. Sonraki / Önceki her zaman kullanılabilir.
-- **Vitir:** üçüncü rekâtta kamera ekranı “Kıyam ve kunut” gösterir; kunutun kıraatten sonra, rükûdan önce tamamlanması hatırlatılır. Kamera bu iki ayakta okuma bölümünü birbirinden ayıramaz.
-- Omuzlar görünmüyorsa dik bacaklar rükû sayılmaz; duruş belirsiz kalır. Donmuş kamera görüntüsü adım ilerletmez.
-- **Kamerasız:** “Süre ile prova (kamerasız)” — eski süreyle ilerleme.
-- Canlı önizleme ekranın yaklaşık yarısı (ayna ön kamera); **baştan dizlere kadar tüm gövde** kadrajda kalsın. Diz/ayak bileği görünmezse secde ile oturuş, kıyamdan güvenle ayırt edilemez — bu durumda “Dizler görünmüyor — telefonu geriye çekin” uyarısı çıkar. Durum: “Bekleniyor: rükû”, “Algı: kıyam”, “2. secde görüldü — rekat sayılacak”. Saat sayacı yok.
-- **Ses:** yalnızca adım **`secde2` → `kalkış` veya `tahiyyat`** (ilk/son oturuş) geçişinde, biten rekâtın sayısı bir kez (1 **bir**, 2 **iki**, 3 **üç**, 4 **dört**). Rükûdan kalkış (kavme), 1. secdeden celse, secdeye giriş veya duruş titremesi konuşturmaz. **Ses kapalı** düğmesi vardır.
-- İlk başarılı çevrimdışı kurulumdan sonra kabuk + duruş modeli servis çalışanıyla önbelleğe alınır; namaz ortasında Wi‑Fi kopsa ekran boşalmamalıdır. Bitiş ekranı **Namaz bitti** yereldedir.
-- **Güncellemeler:** açık namaz ekranı otomatik yenilenmez. Yeni çevrimdışı sürüm, eski sürümü kullanan bütün sekmeler/uygulama pencereleri kapatıldıktan sonra etkinleşir. İndirme başarısızsa çalışan eski sürüm korunur; başka uygulamaların önbellekleri silinmez.
-- % sayacı yoktur; durum metni ne beklendiğini söyler (ör. “Şimdi rükûya eğilin”).
-- Görüntü **yalnızca cihazda** işlenir; kareler yüklenmez ve kaydedilmez.
-- Kamera için **HTTPS** gerekir; bu Pages adresi zaten HTTPS.
-- Safari’de ilk seferde kameraya izin verin. Reddedilirse Ayarlar → Safari → Kamera.
-- Telefonu/tableti **uzaklaştırın ve yere yakın bir yere yaslayın** — yalnızca yüz/omuz kadrajı secde ve oturuşu asla doğru algılamaz; baştan dizlere/ayaklara kadar tüm gövde görünsün.
-- Telefonu **tam karşınıza değil hafif yandan (~30-45°)** yerleştirin. Namaz sırasında ekrana zaten bakılmıyor; tam cepheden bakan bir kamerada rükûdaki öne eğilme, gövdeyi kameraya doğru/ondan uzağa döndürdüğü için poz modeli tarafından güvenle görülemeyebilir. Hafif açı bu eğilmeyi yandan gösterir ve rükû tespitini belirgin şekilde güçlendirir.
-- Sonraki / Önceki her zaman yedektir.
+- Takip motoru (`src/pose/prayerTracker.ts`) ekran adımlarından bağımsızdır.
+- Gözlenen sıra: kıyam → rükû → kavme → secde1 → celse → secde2 → oturuş/kıyam.
+- Sayı, ikinci secdeye girişte değil **çıkış doğrulanınca** bir kez üretilir.
+- Uzun bekleme sayı üretmez. Kısa algı kayıpları tolere edilir; 2,5 saniyelik
+  doğrulanamayan görüntü veya kalıcı sıra uyuşmazlığı sayımı durdurur. Kaçan rekât
+  tahmin edilmez. Kamera kapatılıp açıldığında yeni deneme sıfırdan başlar.
+- Ekran gizlenirse sayım durur. Kamera açıkken elle adım ilerletme kapalıdır.
+- Son rekâtın hareketleri doğrulandığında sayaç durur. Selam kamerayla algılanmaz;
+  kullanıcı selamdan sonra Bitir düğmesini kullanır.
+- Ses, hazırlık bildirimi ve doğrulanan rekât sayıları içindir. Namaz sırasında
+  kısa kadraj kayıplarında konuşulmaz; sayım kesintisi ekranda ve günlükte belirtilir.
+- Geometri, kameranın gerçek genişlik/yüksekliğiyle ortak ölçeğe çevrilir.
+  Günlükteki “duruş puanı” olasılık veya doğruluk yüzdesi değildir.
+- Görüntü/video kaydedilmez veya gönderilmez. Saniyelik sayısal eklem ölçümleri,
+  puanlar ve takip geçişleri sınırlı yerel günlükte tutulur; günlük silinebilir.
+- İlk başarılı önbelleklemeden sonra uygulama/model çevrimdışı çalışır. Güncelleme
+  için eski sekmeler ve ana ekran uygulaması tamamen kapatılmalıdır.
+
+**Doğrulama sınırı:** otomatik testler gerçek kamera doğruluğunu kanıtlamaz. İlk deneme
+namaz dışında iki rekâtlık hareket provası olmalı: her ikinci secdeden çıkışta tam bir
+sayı duyulmalı; hazırlıkta, ilk secdede ve hareketsiz beklemede sayı duyulmamalıdır.
+Sağ çapraz yerleşim, doğal tempo ve kısa örtülmeler gerçek cihazda ayrıca sınanmalıdır.
 
 ## iPhone’da denemek (Expo Go, geliştirme)
 
@@ -164,3 +174,8 @@ Küçük ayrıntıda tereddüt varsa `src/data/buildSteps.ts` içindeki yorumlar
 ## Regresyon kontrolleri
 
 `npm test`: namaz verileri, sentetik duruşlar, altı namazın tam kamera akışı, iki saniyelik rükû, rekât seslerinin tekilleştirilmesi, omuz/görüntü kaybı ve çevrimdışı güncelleme hata senaryoları. Gerçek cihazda ışık/kadraj farklılıkları ayrıca denenmelidir.
+
+Yeni takip motoru kontrolleri: `npm run check:tracker`. Tam diziler, ikinci secdeden
+çıkış, eksik hareket, donma, kısa gürültü ve en–boy oranı değişimleri sınanır.
+Eski `check:camera` öğretim adımı yardımcılarının geriye dönük kontrollerini de içerir;
+aktif kamera sayımının kaynağı yeni takip motorudur.
