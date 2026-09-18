@@ -85,3 +85,53 @@ for (const missing of [false, true]) {
   assert.equal(progress.update(index, 'secde', 2110, true).advance, false);
 }
 console.log('OK omuz kaybı, görüntü donması ve uzun algı kesintisi');
+
+// Kullanıcının hazırlık hareketleri, tek el kaldırma ve kadraj kaybı başlangıç değildir.
+import { createTakbirStart, acceptedCameraPose } from '../src/pose/takbirStart';
+const full = points.map(p => ({ ...p, visibility: .95 }));
+full[11] = { x: .38, y: .22, visibility: .95 };
+full[12] = { x: .62, y: .22, visibility: .95 };
+full[7] = { x: .44, y: .13, visibility: .95 };
+full[8] = { x: .56, y: .13, visibility: .95 };
+full[15] = { x: .39, y: .6, visibility: .95 };
+full[16] = { x: .61, y: .6, visibility: .95 };
+const raised = full.map(p => ({ ...p }));
+raised[15].y = .13;
+raised[16].y = .13;
+const oneHand = raised.map(p => ({ ...p }));
+oneHand[16].y = .6;
+const hiddenHand = raised.map(p => ({ ...p }));
+hiddenHand[16].visibility = .1;
+const standingGuess = { pose: 'kiyam' as const, confidence: .9, framing: 'ok' as const };
+for (const invalid of [oneHand, hiddenHand]) {
+  const start = createTakbirStart();
+  for (let t = 0; t < 550; t += 110) start.update(full, standingGuess, t);
+  for (let t = 550; t < 1100; t += 110) assert.notEqual(start.update(invalid, standingGuess, t), 'started');
+  for (let t = 1100; t < 2200; t += 110) assert.notEqual(start.update(full, standingGuess, t), 'started');
+}
+const start = createTakbirStart();
+for (let t = 0; t < 1100; t += 110) assert.equal(start.update(raised, standingGuess, t), 'waiting', 'öncesinde ayakta eller aşağı görülmeli');
+for (let t = 1100; t < 1650; t += 110) start.update(full, standingGuess, t);
+for (let t = 1650; t < 2200; t += 110) assert.notEqual(start.update(raised, standingGuess, t), 'started');
+let phase = '';
+for (let t = 2200; t < 2750; t += 110) phase = start.update(full, standingGuess, t);
+assert.equal(phase, 'started');
+start.resetPending();
+assert.equal(start.update(undefined, { pose: 'unknown', confidence: 0, framing: 'none' }, 9999), 'started', 'namaz içinde kayıp/sekme dönüşü tekbiri yeniden başlatmaz');
+for (const framing of ['none', 'partial', 'close'] as const) {
+  assert.equal(acceptedCameraPose({ pose: 'ruku', confidence: 1, framing }), 'unknown');
+}
+assert.equal(acceptedCameraPose({ pose: 'ruku', confidence: 0, framing: 'ok' }), 'unknown');
+assert.equal(acceptedCameraPose({ pose: 'ruku', confidence: NaN, framing: 'ok' }), 'unknown');
+// Tam görünür ama üst üste çökmüş eklemlerden sıfır güvenli eski poz üretilemez.
+const collapsed = Array.from({ length: 33 }, () => ({ x: .5, y: .5, visibility: 1 }));
+for (const previous of ['kiyam', 'ruku', 'secde', 'oturus'] as const) {
+  const guess = classifyPose(collapsed, previous);
+  assert.ok(guess.pose === 'unknown' || guess.confidence >= .3);
+}
+// Eğilmiş üst gövde, bacaklar kayıpsa rükûya dönüştürülemez.
+const cropped = full.map(p => ({ ...p }));
+cropped[11].y = cropped[12].y = .46;
+for (const id of [25,26,27,28]) cropped[id].visibility = 0;
+assert.equal(classifyPose(cropped, 'ruku').pose, 'unknown');
+console.log('OK tekbir sırası, tek el/örtülme, başlangıç kilidi, eksik kadraj ve güven tabanı');

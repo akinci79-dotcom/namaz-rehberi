@@ -158,25 +158,8 @@ export function classifyPose(landmarks: readonly PoseLandmark[], previous?: Body
   const usingKneeOnly = !ankle && !!knee;
   const legScaleCompensation = usingKneeOnly ? 1.9 : 1;
   if (!lowerRef) {
-    // ÖNEMLİ SINIRLAMA: diz/ayak bileği görünmüyorsa secde ve oturuş, torso/omuz
-    // oranıyla kıyamdan güvenle ayırt edilemez — ayakta dururken de otururken de
-    // gövde-omuz oranı neredeyse aynıdır (yalnızca bacak açısı ayırt eder). Burada
-    // secde/oturuşu 0 bırakıp yalnızca kıyam/rükûyu tahmin ediyoruz; çağıran taraf
-    // (usePoseAssist → cameraStatusText: legsMissing) bunu sessizce yanlış
-    // sınıflandırmak yerine kullanıcıya "telefonu geriye çekin" diye söylemeli.
-    const highTorso = clamp((torsoNorm - 0.35) / 0.55, 0, 1);
-    const lowTorso = clamp((0.5 - torsoNorm) / 0.4, 0, 1);
-    return pick(
-      {
-        kiyam: highTorso * (1 - bentSignal),
-        ruku: Math.max(lowTorso, bentSignal),
-        secde: 0,
-        oturus: 0,
-      },
-      previous,
-      0.38,
-      framing,
-    );
+    // Bacaklar olmadan eğilmiş gövde rükû ile secdeyi ayırt etmez.
+    return empty(framing);
   }
 
   const legNorm = ((lowerRef.y - hip.y) / scale) * legScaleCompensation;
@@ -230,20 +213,18 @@ function pick(
   const [bestPose, bestScore] = entries[0];
   const second = entries[1]?.[1] ?? 0;
 
-  if (previous && previous !== 'unknown' && previous !== bestPose) {
+  // Güven tabanı, önceki pozu koruma mantığından önce uygulanır.
+  if (!Number.isFinite(bestScore) || bestScore < min) {
+    return { pose: 'unknown', confidence: Number.isFinite(bestScore) ? bestScore : 0, framing };
+  }
+  if (previous && previous !== 'unknown') {
     const prevScore = scores[previous];
-    if (prevScore + HYSTERESIS >= bestScore) {
+    if (prevScore >= min && prevScore + HYSTERESIS >= bestScore) {
       return { pose: previous, confidence: prevScore, framing };
     }
   }
-
-  if (bestScore < min || bestScore - second < 0.03) {
-    return {
-      pose: previous && previous !== 'unknown' && bestScore > min * 0.65 ? previous : 'unknown',
-      confidence: bestScore,
-      framing,
-    };
+  if (bestScore - second < 0.03) {
+    return { pose: 'unknown', confidence: bestScore, framing };
   }
-
   return { pose: bestPose, confidence: bestScore, framing };
 }

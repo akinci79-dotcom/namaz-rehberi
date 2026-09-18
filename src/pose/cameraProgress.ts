@@ -35,7 +35,8 @@ export function createCameraProgress(steps: readonly CameraStepRef[]) {
       lastAt = now;
       if (detected === 'unknown') {
         unknownSince ??= now;
-        if (now - unknownSince >= 500) hold = 0;
+        // Belirsiz/eksik kare, eski birikimle yeni hareketi onaylamasın.
+        hold = 0;
       } else {
         unknownSince = null;
       }
