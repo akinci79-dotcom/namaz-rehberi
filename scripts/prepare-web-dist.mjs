@@ -82,12 +82,13 @@ console.log('Web dist iOS/Safari için hazırlandı.');
 
 function writeServiceWorker(root) {
   const assets = ['.', './index.html', './404.html', `./offline.js?v=${offlineVersion}`, ...listRelFiles(root)]
-    .filter((path) => path !== './sw.js')
+    .filter((path) => path !== './sw.js' && path !== './.nojekyll')
     .filter((path, index, all) => all.indexOf(path) === index);
 
   // Model, kayıt betiği veya manifest değişince de yeni sürüm oluştur.
   const hash = createHash('sha256');
   hash.update(serviceWorkerSource('', []));
+  hash.update(JSON.stringify(assets));
   for (const path of listRelFiles(root).sort()) {
     hash.update(path);
     hash.update(readFileSync(join(root, path)));
