@@ -32,6 +32,9 @@ export interface CameraTickInput {
 
 export interface CameraTickResult {
   advance: boolean;
+  /** Yalnızca doğrulanan hareketin hedefi; serbest ileri atlama yok. */
+  targetIndex: number | null;
+  targetConfirmed: boolean;
   /** Rükû birinci faz: adım ilerlemez, rükû teyit edilir. */
   commitCurrent: boolean;
   hint: AdvanceHint;
@@ -70,6 +73,8 @@ export function expectedPoseForTransition(
       return 'oturus';
     case 'ruku':
       return currentConfirmed ? 'kiyam' : 'ruku';
+    case 'kalkis':
+      return 'kiyam';
     default:
       break;
   }
@@ -117,7 +122,7 @@ export function accumulateHold(
 /**
  * INVARIANT: model hazır, sonraki adım var, detected === expectedPose,
  * holdExpectedMs >= CAMERA_HOLD_MS → advance true (rükû 1. faz hariç: commitCurrent).
- * Çağıran, advance true ise Sonraki ile aynı onAdvance'i çağırmak ZORUNDADIR.
+ * Çağıran targetIndex'e ilerler ve targetConfirmed bilgisini korur.
  */
 export function tickCameraAdvance(input: CameraTickInput): CameraTickResult {
   const current = input.steps[input.index];
@@ -132,6 +137,8 @@ export function tickCameraAdvance(input: CameraTickInput): CameraTickResult {
 
   const base = {
     commitCurrent: false,
+    targetIndex: null,
+    targetConfirmed: false,
     currentPose,
     expectedPose,
     waitingFor,
@@ -157,12 +164,41 @@ export function tickCameraAdvance(input: CameraTickInput): CameraTickResult {
   }
 
   if (heldLongEnough) {
-    return { ...base, advance: true, hint: 'camera' };
+    const targetIndex = cameraTargetIndex(input.steps, input.index);
+    return { ...base, advance: true, targetIndex,
+      targetConfirmed: input.steps[targetIndex]?.kind === 'ruku' && input.detected === 'ruku',
+      hint: 'camera' };
   }
   if (holding) {
     return { ...base, advance: false, hint: 'camera' };
   }
   return { ...base, advance: false, hint: 'none' };
+}
+
+/** Yalnızca aynı hareketin öğretim ekranlarını birleştirir. Secde2 asla atlanmaz. */
+function cameraTargetIndex(steps: readonly CameraStepRef[], index: number): number {
+  const kind = steps[index]?.kind;
+  if (kind === 'niyet' || kind === 'iftitah' || kind === 'kiyam' || kind === 'kunut') {
+    let target = index + 1;
+    while (['niyet', 'iftitah', 'kiyam', 'kunut'].includes(steps[target]?.kind)) target += 1;
+    if (steps[target]?.kind === 'ruku') return target;
+  }
+  // Kavmede beklenen secde zaten doğrulandı; secde1 için tekrar bekletme.
+  if (kind === 'kavme' && steps[index + 1]?.kind === 'secde1' && steps[index + 2]?.kind === 'celse') {
+    return index + 2;
+  }
+  if (kind === 'tahiyyat' && steps[index + 1]?.kind === 'kalkis' && steps[index + 2]?.kind === 'kiyam') {
+    return index + 2;
+  }
+  return index + 1;
+}
+
+/** Kunut, kamera ile ayırt edilemeyen kıraatle aynı ayakta duruşta gösterilir. */
+export function cameraStepTitle(steps: readonly (CameraStepRef & { title: string })[], index: number): string {
+  const step = steps[index];
+  return step?.kind === 'kiyam' && steps[index + 1]?.kind === 'kunut'
+    ? 'Kıyam ve kunut'
+    : step?.title ?? '';
 }
 
 export function cameraStatusText(input: {

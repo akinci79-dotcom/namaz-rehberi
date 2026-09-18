@@ -10,9 +10,12 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "check:prayers": "npx --yes tsx scripts/check-prayers.ts",
-    "check:pose": "npx --yes tsx scripts/check-pose.ts",
-    "export:web": "expo export -p web && node scripts/prepare-web-dist.mjs"
+    "check:prayers": "node --import tsx scripts/check-prayers.ts",
+    "check:pose": "node --import tsx scripts/check-pose.ts",
+    "export:web": "expo export -p web && node scripts/prepare-web-dist.mjs",
+    "check:camera": "node --import tsx scripts/check-camera-flow.ts",
+    "check:offline": "node scripts/check-offline.mjs",
+    "test": "npm run check:prayers && npm run check:pose && npm run check:camera && npm run check:offline"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.15",
@@ -28,7 +31,9 @@
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
+    "@types/node": "^24.13.5",
     "@types/react": "~19.2.2",
+    "tsx": "^4.23.13",
     "typescript": "~6.0.3"
   }
 }

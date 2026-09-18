@@ -209,6 +209,8 @@ for (const [name, landmarks, expected] of cases) {
 
 const IDLE_CAMERA_TICK = {
   advance: false,
+  targetIndex: null,
+  targetConfirmed: false,
   commitCurrent: false,
   hint: 'none' as const,
   currentPose: 'unknown' as const,
@@ -265,13 +267,11 @@ if (rukuNoNoseGuess.pose !== 'ruku') {
   failed += 1;
 }
 
-// Regresyon: gerçek video testinde bulunan asıl hata — rükûda omuz görünmese de
-// (öne eğilme kameraya doğru/uzağa olduğu için) bacaklar hâlâ dik ise rükû
-// algılanmalı. Eskiden omuz yokluğu tüm veriyi atıp "unknown" döndürüyordu.
+// Omuzsuz dik bacaklar rükû kanıtı değildir: duruş belirsiz kalmalıdır.
 const rukuNoShouldersGuess = classifyPose(rukuNoShoulders());
-if (rukuNoShouldersGuess.pose !== 'ruku') {
+if (rukuNoShouldersGuess.pose !== 'unknown') {
   console.log(
-    `FAIL ruku without visible shoulders should still classify as ruku via leg signal, got ${rukuNoShouldersGuess.pose}`,
+    `FAIL missing shoulders cannot distinguish ruku from standing and must return unknown, got ${rukuNoShouldersGuess.pose}`,
   );
   failed += 1;
 }

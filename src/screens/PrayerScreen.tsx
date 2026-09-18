@@ -15,6 +15,7 @@ import { PrivacyModal } from '../components/PrivacyModal';
 import { StepProgress } from '../components/StepProgress';
 import { VoiceToggle } from '../components/VoiceToggle';
 import { getNextTitle, getPrayer, getPrayerSteps, MADHAB_LABEL, rankLabel } from '../data';
+import { cameraStepTitle } from '../pose/cameraAdvance';
 import { usePoseAssist } from '../pose/usePoseAssist';
 import { usePoseVoiceCues } from '../pose/usePoseVoiceCues';
 import { usePracticeTimer } from '../pose/usePracticeTimer';
@@ -59,6 +60,7 @@ export function PrayerScreen({
   const steps = useMemo(() => getPrayerSteps(prayerId), [prayerId]);
   const step = steps[stepIndex];
   const nextTitle = getNextTitle(steps, stepIndex);
+  const cameraKunut = step?.kind === 'kiyam' && steps[stepIndex + 1]?.kind === 'kunut';
   const isFirst = stepIndex <= 0;
   const isLast = stepIndex >= steps.length - 1;
   const [cameraOn, setCameraOn] = useState(false);
@@ -96,7 +98,10 @@ export function PrayerScreen({
     enabled: cameraOn,
     steps,
     stepIndex,
-    onAdvance: advanceStep,
+    onAdvance: (targetIndex) => {
+      onHaptic('medium');
+      onIndexChange(targetIndex);
+    },
   });
 
   usePracticeTimer({
@@ -223,9 +228,9 @@ export function PrayerScreen({
               </Text>
             ) : null}
 
-            {assist.cue ? (
+            {cameraOn && (cameraKunut || assist.cue) ? (
               <Text style={[styles.cue, { color: theme.accent, fontSize: cameraOn ? 22 : 26 }]}>
-                {assist.cue}
+                {cameraKunut ? 'Kıraat ve kunutu tamamladıktan sonra rükûya eğilin.' : assist.cue}
               </Text>
             ) : null}
 
@@ -235,7 +240,7 @@ export function PrayerScreen({
                 { color: theme.text, fontSize: titleSize, lineHeight: titleSize + 6 },
               ]}
             >
-              {step.title}
+              {cameraOn ? cameraStepTitle(steps, stepIndex) : step.title}
             </Text>
 
             {!cameraOn ? (

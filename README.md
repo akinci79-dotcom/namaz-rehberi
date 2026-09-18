@@ -23,7 +23,7 @@ Kaynağı klonlamak:
 ```bash
 git clone -b source https://github.com/akinci79-dotcom/namaz-rehberi.git
 cd namaz-rehberi
-npm install
+npm ci
 ```
 
 Canlı site (Safari, kaynak gerekmez):
@@ -38,6 +38,8 @@ npx expo start --web    # web önizleme
 npm run typecheck
 npm run check:prayers
 npm run check:pose
+npm run check:camera
+npm run check:offline
 ```
 
 ## Web derlemesi ve Pages yayını
@@ -45,12 +47,12 @@ npm run check:pose
 GitHub Actions yok. Yayın elle: derleme `dist/` üretir, içeriği deponun **`main`** dalına (Pages) kopyalanır.
 
 ```bash
-npm run export:web
+npm run typecheck && npm test && npm run export:web
 # dist/ = index.html + _expo + mediapipe wasm + sw.js
 # MediaPipe wasm npm paketinden kopyalanır (git'te tutulmaz).
 ```
 
-`dist/` içeriğini `akinci79-dotcom/namaz-rehberi` **`main`** dalına (force-push, yalnızca derleme) gönderin. `source` dalına `node_modules/` veya `dist/` koymayın.
+`dist/` içeriğini `akinci79-dotcom/namaz-rehberi` **`main`** dalına (mevcut geçmişi koruyan yeni bir commit ile, yalnızca derleme) gönderin. `source` dalına `node_modules/` veya `dist/` koymayın.
 
 İsteğe bağlı: Safari’de **Paylaş → Ana Ekrana Ekle**.
 
@@ -58,11 +60,14 @@ npm run export:web
 
 Namaz ekranında **Kamera yardımcısı**nı açın. Ön kamera duruşu tanır (kıyam, rükû, secde, oturuş).
 
-- **Kamera açıkken süre yok.** Adım yalnızca (1) beklenen duruş ~0,55 sn tutulunca — kıyamda rükû, secdede secde, rükûda önce rükû sonra kıyam — veya (2) Sonraki / Önceki. Geçişte “Geçildi: …” görünür. Sessiz saat yok.
+- **Kamera açıkken otomatik prova süresi yok.** Hareket yaklaşık 0,55 sn doğrulanınca ilerlenir. Niyet/tekbir/kıyam aynı rükû için ayrı ayrı bekletilmez; doğrulanan rükû yeniden onaylatılmaz. Kavmede doğrulanan ilk secde de ikinci kez bekletilmez. İki secde arasında oturuş görülmeden rekât sayılmaz. Sonraki / Önceki her zaman kullanılabilir.
+- **Vitir:** üçüncü rekâtta kamera ekranı “Kıyam ve kunut” gösterir; kunutun kıraatten sonra, rükûdan önce tamamlanması hatırlatılır. Kamera bu iki ayakta okuma bölümünü birbirinden ayıramaz.
+- Omuzlar görünmüyorsa dik bacaklar rükû sayılmaz; duruş belirsiz kalır. Donmuş kamera görüntüsü adım ilerletmez.
 - **Kamerasız:** “Süre ile prova (kamerasız)” — eski süreyle ilerleme.
 - Canlı önizleme ekranın yaklaşık yarısı (ayna ön kamera); **baştan dizlere kadar tüm gövde** kadrajda kalsın. Diz/ayak bileği görünmezse secde ile oturuş, kıyamdan güvenle ayırt edilemez — bu durumda “Dizler görünmüyor — telefonu geriye çekin” uyarısı çıkar. Durum: “Bekleniyor: rükû”, “Algı: kıyam”, “2. secde görüldü — rekat sayılacak”. Saat sayacı yok.
 - **Ses:** yalnızca adım **`secde2` → `kalkış` veya `tahiyyat`** (ilk/son oturuş) geçişinde, biten rekâtın sayısı bir kez (1 **bir**, 2 **iki**, 3 **üç**, 4 **dört**). Rükûdan kalkış (kavme), 1. secdeden celse, secdeye giriş veya duruş titremesi konuşturmaz. **Ses kapalı** düğmesi vardır.
-- İlk yüklemeden sonra kabuk + duruş modeli servis çalışanıyla önbelleğe alınır; namaz ortasında Wi‑Fi kopsa ekran boşalmamalıdır. Bitiş ekranı **Namaz bitti** yereldedir.
+- İlk başarılı çevrimdışı kurulumdan sonra kabuk + duruş modeli servis çalışanıyla önbelleğe alınır; namaz ortasında Wi‑Fi kopsa ekran boşalmamalıdır. Bitiş ekranı **Namaz bitti** yereldedir.
+- **Güncellemeler:** açık namaz ekranı otomatik yenilenmez. Yeni çevrimdışı sürüm, eski sürümü kullanan bütün sekmeler/uygulama pencereleri kapatıldıktan sonra etkinleşir. İndirme başarısızsa çalışan eski sürüm korunur; başka uygulamaların önbellekleri silinmez.
 - % sayacı yoktur; durum metni ne beklendiğini söyler (ör. “Şimdi rükûya eğilin”).
 - Görüntü **yalnızca cihazda** işlenir; kareler yüklenmez ve kaydedilmez.
 - Kamera için **HTTPS** gerekir; bu Pages adresi zaten HTTPS.
@@ -155,3 +160,7 @@ Küçük ayrıntıda tereddüt varsa `src/data/buildSteps.ts` içindeki yorumlar
 ## Geliştirme notu
 
 `npx tsc --noEmit` (veya `npm run typecheck`) hatasız geçmelidir. Geliştirme modunda uygulama açılırken rekât ve oturuş noktaları `assertPrayerIntegrity` ile kontrol edilir.
+
+## Regresyon kontrolleri
+
+`npm test`: namaz verileri, sentetik duruşlar, altı namazın tam kamera akışı, iki saniyelik rükû, rekât seslerinin tekilleştirilmesi, omuz/görüntü kaybı ve çevrimdışı güncelleme hata senaryoları. Gerçek cihazda ışık/kadraj farklılıkları ayrıca denenmelidir.

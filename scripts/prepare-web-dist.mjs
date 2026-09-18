@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { serviceWorkerSource } from './service-worker.mjs';
 import { cpSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -32,8 +34,9 @@ html = html.replace(
 html = html.replaceAll('href="/favicon.ico"', 'href="./favicon.ico"');
 html = html.replaceAll('src="/_expo/', 'src="./_expo/');
 
+const offlineVersion = createHash('sha256').update(readFileSync(join(process.cwd(), 'public/offline.js'))).digest('hex').slice(0, 12);
 if (!html.includes('offline.js')) {
-  html = html.replace('</body>', '  <script src="./offline.js" defer></script>\n</body>');
+  html = html.replace('</body>', `  <script src="./offline.js?v=${offlineVersion}" defer></script>\n</body>`);
 }
 
 const iconSrc = join(process.cwd(), 'assets', 'icon.png');
@@ -78,95 +81,19 @@ writeServiceWorker(dist);
 console.log('Web dist iOS/Safari için hazırlandı.');
 
 function writeServiceWorker(root) {
-  const assets = ['.', './index.html', './404.html', ...listRelFiles(root)]
+  const assets = ['.', './index.html', './404.html', `./offline.js?v=${offlineVersion}`, ...listRelFiles(root)]
     .filter((path) => path !== './sw.js')
     .filter((path, index, all) => all.indexOf(path) === index);
 
-  // Cache adı, JS bundle'ın kendi içerik hash'inden türetilir — her `export:web`
-  // farklı kod ürettiğinde otomatik değişir. Elle "v7", "v8" diye bir sayı
-  // bumplamayı UNUTMAK artık mümkün değil (önceki hata buydu: kod değişse bile
-  // CACHE adı sabit kalınca eski sekmeler günlerce eski sürümde takılı kalıyordu).
-  const bundleEntry = assets.find((path) => /\/js\/web\/index-[a-f0-9]+\.js$/.test(path));
-  const bundleHash = bundleEntry?.match(/index-([a-f0-9]+)\.js$/)?.[1]?.slice(0, 10) ?? 'dev';
-  const cacheName = `namaz-offline-${bundleHash}`;
-
-  const body = `const CACHE = ${JSON.stringify(cacheName)};
-const ASSETS = ${JSON.stringify(assets, null, 2)};
-
-self.addEventListener('install', (event) => {
-  // skipWaiting: yeni sürüm, açık sekmeler kapanmasını beklemeden hemen devreye
-  // girsin. Aksi halde kullanıcı Safari'yi tamamen kapatmadan yeni dağıtımı
-  // (ör. bu kamera düzeltmesini) hiç göremez — önceki dağıtımlarda yaşanan sorun.
-  self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).catch(() => undefined),
-  );
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    Promise.all([
-      caches.keys().then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))),
-      ),
-      // clients.claim: zaten açık olan sekmeleri de hemen bu sürüme bağla.
-      self.clients.claim(),
-    ]),
-  );
-});
-
-function isShellRequest(request, url) {
-  return request.mode === 'navigate' || url.pathname.endsWith('/index.html') || url.pathname.endsWith('/404.html');
-}
-
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') {
-    return;
+  // Model, kayıt betiği veya manifest değişince de yeni sürüm oluştur.
+  const hash = createHash('sha256');
+  hash.update(serviceWorkerSource('', []));
+  for (const path of listRelFiles(root).sort()) {
+    hash.update(path);
+    hash.update(readFileSync(join(root, path)));
   }
-  const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) {
-    return;
-  }
-
-  if (isShellRequest(event.request, url)) {
-    // ÖNEMLİ: index.html İÇİNDE hangi JS paketinin (içerik hash'i) yükleneceği
-    // yazılı. Bunu cache-first sunmak, ağ erişilebilir olsa bile kullanıcıyı
-    // yeni bir dağıtım gönderildikten SONRA da sonsuza dek eski kabukta (ve
-    // dolayısıyla eski koddaki hatalarla) takılı bırakabilir — gerçek kullanıcı
-    // testlerinde tam olarak bu şüphelenildi (art arda dağıtımlar hiçbir fark
-    // yaratmadı). Bu yüzden kabuk için ÖNCE AĞ, yalnızca çevrimdışıyken önbellek.
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response && response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(event.request, copy)).catch(() => undefined);
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request).then((cached) => cached ?? caches.match('./index.html'))),
-    );
-    return;
-  }
-
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) {
-        return cached;
-      }
-      return fetch(event.request)
-        .then((response) => {
-          if (response && response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(event.request, copy)).catch(() => undefined);
-          }
-          return response;
-        })
-        .catch(() => caches.match('./index.html'));
-    }),
-  );
-});
-`;
+  const cacheName = `namaz-offline-${hash.digest('hex').slice(0, 16)}`;
+  const body = serviceWorkerSource(cacheName, assets);
   writeFileSync(join(root, 'sw.js'), body);
 }
 

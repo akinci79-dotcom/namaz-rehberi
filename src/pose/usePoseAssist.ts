@@ -2,14 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { PrayerStep } from '../types/prayer';
 import {
-  accumulateHold,
   cameraDebugLine,
   cameraStatusText,
-  expectedPoseForTransition,
-  tickCameraAdvance,
   type AdvanceHint,
   type CameraTickResult,
 } from './cameraAdvance';
+import { createCameraProgress } from './cameraProgress';
 import { classifyPose } from './classifyPose';
 import { createPoseLandmarker, type PoseLandmarkerHandle } from './mediapipe';
 import { cameraSupported, isWebRuntime } from './publicUrl';
@@ -26,7 +24,6 @@ export type AssistStatus =
   | 'unsupported'
   | 'error';
 
-const COOLDOWN_MS = 400;
 // ÖNEMLİ: kullanıcı gerçek namazda "kaplumbağa gibi çok yavaş hareket etmek
 // gerekiyor, hızlı hareket edince algılamıyor" diye bildirdi. Zincir şöyleydi:
 // her 140ms'de bir kare işleniyor → 3 ardışık kare aynı pozu göstermeden algı
@@ -40,7 +37,7 @@ interface Options {
   enabled: boolean;
   steps: readonly PrayerStep[];
   stepIndex: number;
-  onAdvance: () => void;
+  onAdvance: (targetIndex: number) => void;
 }
 
 export interface PoseAssistState {
@@ -64,6 +61,8 @@ export interface PoseAssistState {
 
 const IDLE_TICK: CameraTickResult = {
   advance: false,
+  targetIndex: null,
+  targetConfirmed: false,
   commitCurrent: false,
   hint: 'none',
   currentPose: 'unknown',
@@ -136,11 +135,8 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
     let landmarker: PoseLandmarkerHandle | null = null;
     let raf = 0;
     let lastFrame = 0;
-    let lastTickAt = performance.now();
-    let lastAdvance = 0;
-    let gateStep = -1;
-    let holdExpectedMs = 0;
-    let currentConfirmed = false;
+    let lastVideoTime = -1;
+    const progress = createCameraProgress(stepsRef.current);
     let prevPose: BodyPose | undefined;
     let stablePose: BodyPose = 'unknown';
     let publishedPose: BodyPose = 'unknown';
@@ -194,11 +190,12 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       // her şeyi sıfırlıyoruz.
       logSessionEvent('sekme/ekran tekrar görünür oldu (muhtemel uyku)');
       setWokeFromHidden(true);
-      gateStep = -1;
-      holdExpectedMs = 0;
-      currentConfirmed = false;
-      lastTickAt = performance.now();
-      lastAdvance = performance.now();
+      progress.reset();
+      publishedPose = 'unknown';
+      stablePose = 'unknown';
+      stableCount = 0;
+      prevPose = undefined;
+      lastVideoTime = -1;
       // iOS Safari, sekme/ekran gizliyken video akışını duraklatabilir; geri
       // dönünce elle play() çağırmak gerekebilir, yoksa kare akışı hiç gelmez.
       videoRef.current?.play().catch(() => undefined);
@@ -223,46 +220,20 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
       if (!here) {
         return;
       }
-      if (gateStep !== idx) {
-        gateStep = idx;
-        holdExpectedMs = 0;
-        currentConfirmed = false;
-        logSessionEvent(`adım değişti → #${idx} (${here.kind})`);
-      }
-      if (now - lastAdvance < COOLDOWN_MS) {
-        return;
-      }
-
-      const dt = Math.min(Math.max(0, now - lastTickAt), 250);
-      lastTickAt = now;
-
-      const expected = expectedPoseForTransition(list, idx, currentConfirmed);
-      holdExpectedMs = accumulateHold(holdExpectedMs, dt, pose, expected);
-
-      const result = tickCameraAdvance({
-        steps: list,
-        index: idx,
-        detected: pose,
-        holdExpectedMs,
-        currentConfirmed,
-        modelReady,
-      });
+      const result = progress.update(idx, pose, now, modelReady);
       setTick(result);
 
       if (result.commitCurrent) {
-        currentConfirmed = true;
-        holdExpectedMs = 0;
         logSessionEvent(`rükû onaylandı (#${idx}), kıyam bekleniyor`);
         return;
       }
 
       // Algı beklenen duruşu HOLD süresince tuttuysa Sonraki ile aynı ilerleme.
-      if (result.advance) {
-        lastAdvance = now;
-        holdExpectedMs = 0;
-        const nxt = list[idx + 1];
+      if (result.advance && result.targetIndex !== null) {
+        const target = result.targetIndex;
+        const nxt = list[target];
         const label = nxt ? `Geçildi: ${nxt.title}` : 'Geçildi';
-        logSessionEvent(`KAMERA İLERLETTİ #${idx} → #${idx + 1} (${nxt?.kind ?? '?'}), algı=${pose}`);
+        logSessionEvent(`KAMERA İLERLETTİ #${idx} → #${target} (${nxt?.kind ?? '?'}), algı=${pose}`);
         setPassedLabel(label);
         clearTimeout(passedTimer);
         passedTimer = setTimeout(() => {
@@ -270,7 +241,8 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
             setPassedLabel(null);
           }
         }, 1400);
-        onAdvanceRef.current();
+        stepIndexRef.current = target;
+        onAdvanceRef.current(target);
       }
     };
 
@@ -354,8 +326,6 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
           logSessionEvent('durum: running');
         }
 
-        lastTickAt = performance.now();
-        gateStep = stepIndexRef.current;
         let loggedFraming: Framing | null = null;
         let lastHeartbeatAt = performance.now();
 
@@ -366,7 +336,8 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
           const now = performance.now();
           let pose: BodyPose = publishedPose;
 
-          if (landmarker && video.readyState >= 2 && now - lastFrame >= FRAME_MS) {
+          if (landmarker && video.readyState >= 2 && video.currentTime !== lastVideoTime && now - lastFrame >= FRAME_MS) {
+            lastVideoTime = video.currentTime;
             lastFrame = now;
             try {
               const result = landmarker.detectForVideo(video, now);
@@ -417,12 +388,16 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
                 }
               }
             } catch {
-              // tek kare
+              pose = 'unknown';
+              publishedPose = 'unknown';
+              stablePose = 'unknown';
+              stableCount = 0;
+              setDetected('unknown');
             }
+            // Yalnızca yeni görüntü örneği süre biriktirir; son poz donmuşken sayılmaz.
+            runGate(now, pose);
             mountVideo(video);
           }
-
-          runGate(now, pose);
 
           // Nabız: değişiklik olmasa bile döngünün canlı olduğunu ve o anki
           // durumu kanıtlamak için düzenli aralıklarla kaydet. Sekme donarsa
@@ -430,7 +405,7 @@ export function usePoseAssist({ enabled, steps, stepIndex, onAdvance }: Options)
           if (now - lastHeartbeatAt > 4000) {
             lastHeartbeatAt = now;
             logSessionEvent(
-              `nabız: adım=#${stepIndexRef.current} algı=${pose} çerçeve=${loggedFraming ?? 'none'} hold=${Math.round(holdExpectedMs)}ms model=${modelReady}`,
+              `nabız: adım=#${stepIndexRef.current} algı=${pose} çerçeve=${loggedFraming ?? 'none'} model=${modelReady}`,
             );
           }
 
